@@ -460,55 +460,124 @@ export default function ConsoleSection() {
 
       {/* Exercises */}
       <div className="mt-8 card p-6">
-        <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
-          <span>🏋️</span> Ejercicios para practicar
-        </h3>
-        <div className="grid md:grid-cols-2 gap-4">
-          {[
-            {
-              tab: 'mst',
-              icon: '🌲',
-              title: 'MST',
-              exercises: [
-                'Cambia los pesos de las aristas y observa cómo cambia el MST.',
-                'Agrega una nueva arista y verifica si entra al MST.',
-                'Modifica el grafo para que tenga pesos iguales. ¿Qué pasa?',
-                '(Avanzado) Implementa el algoritmo de Prim usando una matroide diferente.',
-              ]
-            },
-            {
-              tab: 'booking',
-              icon: '🏨',
-              title: 'Hospedajes',
-              exercises: [
-                'Cambia el valor de k (línea: const k = 3) y ejecuta.',
-                'Agrega un nuevo hotel con calificación 5.0 y verifica.',
-                'Prueba con k = 0 y k = hotels.length.',
-                '(Avanzado) Modifica isIndependent para una restricción diferente.',
-              ]
-            }
-          ].map(section => (
-            <div key={section.tab} className="space-y-3">
-              <h4 className="text-white font-medium flex items-center gap-2 text-sm">
-                <span>{section.icon}</span>
-                Ejercicios — {section.title}
-              </h4>
-              <ul className="space-y-2">
-                {section.exercises.map((ex, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
-                    <span className="text-blue-500 mt-0.5 shrink-0">{i + 1}.</span>
-                    <span>{ex}</span>
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => setActiveTab(section.tab as 'mst' | 'booking')}
-                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                Ir a {section.title} →
-              </button>
-            </div>
-          ))}
+        <div className="flex items-start gap-3 mb-5">
+          <span className="text-2xl">📝</span>
+          <div>
+            <h3 className="text-white font-semibold text-lg flex items-center gap-2">
+              Ejercicios para entregar hoy
+            </h3>
+            <p className="text-slate-400 text-sm mt-1">
+              Completa estos ejercicios en la consola de arriba. Puedes (y se te anima a) usar{' '}
+              <span className="text-emerald-300 font-medium">ChatGPT u otro LLM</span> como asistente —
+              úsalo para entender conceptos, verificar tu razonamiento o desatascarte. Lo importante es
+              que comprendas el <em>por qué</em>.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* MST exercises */}
+          <div className="space-y-4">
+            <h4 className="text-white font-medium flex items-center gap-2 text-sm border-b border-slate-700/50 pb-2">
+              <span>🌲</span> Ejercicios — MST (Kruskal)
+            </h4>
+            <ol className="space-y-3">
+              {[
+                {
+                  q: 'Cambia el peso de la arista AB de 4 a 1 y ejecuta. ¿Entra al MST? ¿Cuánto es el nuevo peso total del árbol?',
+                  hint: '💡 Pista: una arista entra al MST si no crea ciclo y es la de menor peso disponible en ese paso.',
+                },
+                {
+                  q: 'Agrega una nueva arista { id:"BF", from:"B", to:"F", weight:2 }. Ejecuta. ¿Desplaza alguna arista del MST anterior? ¿Por qué sí o no?',
+                  hint: '💡 Pista: pregúntale a ChatGPT "¿qué condición debe cumplir una arista nueva para entrar al MST?"',
+                },
+                {
+                  q: 'Pon todos los pesos en 3 (todas las aristas con weight:3). Ejecuta. ¿El resultado es único? Reflexiona: ¿por qué hay (o no hay) múltiples MSTs posibles?',
+                  hint: '💡 Pista: con pesos iguales el orden de evaluación importa. Consulta con ChatGPT si tu conclusión es correcta.',
+                },
+                {
+                  q: 'Elimina el nodo "F" y sus aristas (DF, EF). Ajusta el arreglo nodes y edges. Ejecuta y verifica manualmente que la suma del MST es correcta.',
+                  hint: '💡 Pista: un grafo con 5 nodos tiene un MST con exactamente 4 aristas.',
+                },
+                {
+                  q: '[Reflexión] Después de ejecutar el código original, el log indica qué aristas fueron rechazadas (❌). Elige dos aristas rechazadas y explica con tus palabras por qué específicamente cada una crearía un ciclo. Usa ChatGPT para verificar tu razonamiento.',
+                  hint: '💡 Pista: dibuja el grafo parcial con las aristas ya aceptadas en ese paso. ¿Conectan los mismos componentes?',
+                },
+              ].map((ex, i) => (
+                <li key={i} className="flex items-start gap-3 bg-slate-900/40 rounded-xl p-3 border border-slate-700/30">
+                  <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                  <div className="space-y-1.5">
+                    <p className="text-slate-200 text-xs leading-relaxed">{ex.q}</p>
+                    <p className="text-slate-500 text-xs italic">{ex.hint}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <button
+              onClick={() => setActiveTab('mst')}
+              className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+            >
+              Abrir consola MST →
+            </button>
+          </div>
+
+          {/* Booking exercises */}
+          <div className="space-y-4">
+            <h4 className="text-white font-medium flex items-center gap-2 text-sm border-b border-slate-700/50 pb-2">
+              <span>🏨</span> Ejercicios — Hospedajes (Top-k)
+            </h4>
+            <ol className="space-y-3">
+              {[
+                {
+                  q: 'Cambia k = 5 y ejecuta. ¿Cuáles son los 5 mejores? Verifica manualmente ordenando los ratings de mayor a menor.',
+                  hint: '💡 Pista: GREEDY simplemente toma los primeros k en orden descendente de peso.',
+                },
+                {
+                  q: 'Agrega un hotel { id:9, name:"Tu Hotel Favorito", rating:4.6 }. Prueba con rating 4.6 y luego con 4.4. ¿En cuál caso entra al top-3? ¿Por qué el límite está exactamente ahí?',
+                  hint: '💡 Pista: el tercer lugar actual tiene un rating específico. ¿Cuál es? ¿Qué ocurre si tu nuevo hotel lo supera?',
+                },
+                {
+                  q: 'Prueba con k = 0 y luego con k = hotels.length. ¿Qué devuelve GREEDY en cada caso extremo? ¿Tiene sentido matemáticamente con la definición de matroide uniforme?',
+                  hint: '💡 Pista: pregúntale a ChatGPT "¿qué es una matroide uniforme de rango 0? ¿y de rango n?"',
+                },
+                {
+                  q: 'Modifica isIndependent para que además del límite k, ningún hotel con rating < 3.5 pueda ser seleccionado. Cambia k=6 y ejecuta. ¿Cuántos hoteles cumplen ambas condiciones?',
+                  hint: '💡 Pista: la nueva condición es: subset.length <= k && subset.every(h => h.rating >= 3.5). ChatGPT puede ayudarte si la sintaxis no es clara.',
+                },
+                {
+                  q: '[Reflexión] La matroide uniforme tiene I = {A ⊆ S : |A| ≤ k}. Demuestra con tus palabras que cumple la propiedad hereditaria y la propiedad de intercambio. Escribe tu argumento y verifica con ChatGPT.',
+                  hint: '💡 Pista: hereditaria = si A ∈ I y B ⊆ A, ¿B ∈ I? Intercambio = si |B| > |A|, ¿puedes agregar un elemento de B a A y quedarte en I?',
+                },
+              ].map((ex, i) => (
+                <li key={i} className="flex items-start gap-3 bg-slate-900/40 rounded-xl p-3 border border-slate-700/30">
+                  <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                  <div className="space-y-1.5">
+                    <p className="text-slate-200 text-xs leading-relaxed">{ex.q}</p>
+                    <p className="text-slate-500 text-xs italic">{ex.hint}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <button
+              onClick={() => setActiveTab('booking')}
+              className="text-xs text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1"
+            >
+              Abrir consola Hospedajes →
+            </button>
+          </div>
+        </div>
+
+        {/* AI encouragement banner */}
+        <div className="mt-5 flex items-start gap-3 bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-4">
+          <span className="text-xl">🤖</span>
+          <div>
+            <p className="text-emerald-300 text-xs font-semibold mb-0.5">Usa IA a tu favor</p>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Puedes pedirle a ChatGPT que te explique un concepto, que verifique tu respuesta o que te dé un contraejemplo.
+              Lo importante no es llegar solo, sino <em>entender el razonamiento</em>.
+              Sugerencia: escribe tu respuesta primero, luego pídele al LLM que te diga si tu lógica es correcta.
+            </p>
+          </div>
         </div>
       </div>
 

@@ -347,10 +347,29 @@ export default function GreedySection() {
         <h3 className="text-white font-semibold text-lg mb-2 flex items-center gap-2">
           <span>🎮</span> Visualización de GREEDY(M, w) genérico
         </h3>
-        <p className="text-slate-400 text-sm mb-4">
-          Aquí usamos una matroide uniforme de rango 3 (independiente = cualquier subconjunto de tamaño ≤ 3).
-          Observa cómo el algoritmo selecciona los elementos con mayor peso mientras respeta la restricción de independencia.
-        </p>
+        <div className="space-y-3 mb-5">
+          <p className="text-slate-300 text-sm leading-relaxed">
+            Para ver el algoritmo en acción necesitamos elegir una matroide concreta. Usamos la más simple posible:
+            una <strong className="text-white">matroide uniforme de rango 3</strong>.
+          </p>
+          <div className="bg-slate-900/60 border border-slate-700/40 rounded-xl p-4 text-xs space-y-2">
+            <p className="text-slate-400">
+              <strong className="text-blue-300">¿Qué es una matroide uniforme de rango k?</strong>{' '}
+              Es aquella donde la regla de independencia es simplemente <em>"el subconjunto tiene a lo sumo k elementos"</em>.
+              No importa qué elementos eliges, solo cuántos. Es equivalente al problema de hospedajes (top-k).
+            </p>
+            <p className="text-slate-400">
+              <strong className="text-purple-300">¿Por qué rango 3?</strong>{' '}
+              Elegimos k=3 como ejemplo. Esto significa que cualquier subconjunto de hasta 3 elementos es un independiente válido.
+              Si agregas un 4.º elemento, ya no es válido. Con 6 elementos en S, el algoritmo aceptará los 3 de mayor peso
+              y rechazará los otros 3.
+            </p>
+          </div>
+          <p className="text-slate-400 text-sm">
+            Avanza paso a paso y observa la condición de independencia en el log — en una matroide diferente (como la gráfica del MST),
+            esa misma condición sería "¿crea ciclo?" en lugar de "¿supera el tamaño?".
+          </p>
+        </div>
         <GenericGreedyViz />
       </div>
 

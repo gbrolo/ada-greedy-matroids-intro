@@ -29,10 +29,21 @@ function HereditaryDemo() {
   return (
     <div className="card p-5 space-y-4">
       <h4 className="text-white font-semibold text-sm">Demo: Propiedad Hereditaria</h4>
-      <p className="text-slate-400 text-xs">
-        En este ejemplo, un conjunto es <strong className="text-emerald-300">independiente</strong> si tiene 2 o menos elementos.
-        Selecciona elementos para formar un conjunto independiente y observa que todos sus subconjuntos también son independientes.
-      </p>
+      <div className="space-y-2">
+        <p className="text-slate-300 text-xs leading-relaxed">
+          En una matroide, un conjunto se llama <strong className="text-emerald-300">independiente</strong> cuando
+          cumple las restricciones del problema. Eso depende del problema concreto: en el MST, es independiente
+          si no forma ciclos; en hospedajes, si tiene ≤ k elementos. La regla varía — lo que no varía es que la
+          familia I de independientes siempre debe ser <em>hereditaria</em>.
+        </p>
+        <p className="text-slate-400 text-xs leading-relaxed bg-slate-900/50 rounded-lg px-3 py-2 border border-slate-700/40">
+          <strong className="text-amber-300">En esta demo</strong> usamos la regla más simple posible:{' '}
+          un conjunto es independiente si tiene <strong className="text-white">2 o menos elementos</strong>.
+          Esto es una <em>matroide uniforme de rango 2</em> — imagina que tienes un mochila con capacidad para 2 objetos.
+          La regla abstracta podría ser cualquier otra (acíclico, ≤ k, etc.), pero el comportamiento hereditario
+          es siempre el mismo.
+        </p>
+      </div>
 
       <div>
         <p className="text-xs text-slate-500 mb-2 font-medium">SELECCIONA ELEMENTOS PARA A:</p>
@@ -107,10 +118,20 @@ function ExchangeDemo() {
   return (
     <div className="card p-5 space-y-4">
       <h4 className="text-white font-semibold text-sm">Demo: Propiedad de Intercambio</h4>
-      <p className="text-slate-400 text-xs leading-relaxed">
-        Si B es un independiente más grande que A, existe algún x ∈ (B − A) tal que A ∪ {'{x}'} es independiente.
-        En este ejemplo, independiente = tamaño ≤ 2.
-      </p>
+      <div className="space-y-2">
+        <p className="text-slate-300 text-xs leading-relaxed">
+          La propiedad de intercambio garantiza que si tienes dos independientes de distinto tamaño, siempre
+          puedes "crecer" el pequeño tomando un elemento del grande — sin romper la independencia.
+          Esto es lo que le permite a GREEDY seguir añadiendo elementos sin quedar atascado.
+        </p>
+        <p className="text-slate-400 text-xs leading-relaxed bg-slate-900/50 rounded-lg px-3 py-2 border border-slate-700/40">
+          <strong className="text-amber-300">En esta demo</strong> la regla de independencia sigue siendo:{' '}
+          <strong className="text-white">tamaño ≤ 2</strong> (matroide uniforme de rango 2).
+          Forma A (el pequeño) y B (el grande) y observa que siempre existe un elemento de B que puedes
+          agregar a A sin sobrepasar el límite. En el MST la misma propiedad aparece: si un bosque A tiene
+          menos aristas que otro B, hay al menos una arista de B que puedes agregar a A sin crear ciclo.
+        </p>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>

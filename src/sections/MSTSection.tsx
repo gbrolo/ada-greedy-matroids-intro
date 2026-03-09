@@ -53,6 +53,24 @@ export default function MSTSection() {
         ))}
       </div>
 
+      {/* Forest definition callout */}
+      <div className="mb-6 bg-amber-950/30 border border-amber-800/40 rounded-xl p-4 flex items-start gap-3">
+        <span className="text-2xl shrink-0">🌳</span>
+        <div>
+          <p className="text-amber-300 font-semibold text-sm mb-1">¿Qué es un <em>bosque</em>?</p>
+          <p className="text-slate-300 text-sm leading-relaxed">
+            Un <strong className="text-white">bosque</strong> (forest) es un grafo no dirigido <strong>acíclico</strong> —
+            puede estar formado por uno o varios árboles desconectados entre sí.
+            Al inicio de Kruskal, cada vértice es su propio árbol aislado: el bosque tiene <em>n</em> componentes y 0 aristas.
+            Con cada arista que aceptamos, dos árboles se fusionan en uno, reduciendo el número de componentes.
+            Cuando todos los vértices están en el mismo árbol, tenemos el MST.
+          </p>
+          <p className="text-slate-500 text-xs mt-2">
+            Clave: cualquier subconjunto de aristas de un bosque también es un bosque (no puede aparecer un ciclo si quitas aristas). Esto es la <strong className="text-amber-300">propiedad hereditaria</strong> que veremos en matroides.
+          </p>
+        </div>
+      </div>
+
       {/* Kruskal explanation */}
       <div className="card p-6 mb-8">
         <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
@@ -65,9 +83,9 @@ export default function MSTSection() {
           <div className="space-y-3">
             {[
               { num: '1', title: 'Ordena todas las aristas', desc: 'De menor a mayor peso. Esta es la clave greedy: siempre intentamos la arista más barata disponible.', color: 'bg-blue-500' },
-              { num: '2', title: 'Inicializa un bosque vacío', desc: 'Cada vértice es su propio árbol (componente). I = ∅ al inicio.', color: 'bg-purple-500' },
-              { num: '3', title: 'Itera sobre las aristas', desc: 'Por cada arista en orden ascendente, verifica si conecta dos componentes distintos.', color: 'bg-amber-500' },
-              { num: '4', title: 'Acepta o rechaza', desc: 'Si no forma ciclo → acepta (une componentes). Si forma ciclo → rechaza y sigue.', color: 'bg-emerald-500' },
+              { num: '2', title: 'Inicializa un bosque vacío', desc: 'Cada vértice es su propio árbol aislado (n componentes, 0 aristas). El conjunto solución A = ∅ al inicio.', color: 'bg-purple-500' },
+              { num: '3', title: 'Itera sobre las aristas', desc: 'Por cada arista en orden ascendente, verifica si conecta dos componentes distintos (i.e., no crearía ciclo).', color: 'bg-amber-500' },
+              { num: '4', title: 'Acepta o rechaza', desc: 'Si no forma ciclo → acepta y fusiona los dos árboles. Si forma ciclo (ambos extremos en el mismo árbol) → rechaza.', color: 'bg-emerald-500' },
             ].map(step => (
               <div key={step.num} className="flex items-start gap-3">
                 <div className={`step-indicator ${step.color} text-white text-sm`}>{step.num}</div>

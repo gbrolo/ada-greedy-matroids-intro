@@ -64,6 +64,14 @@
     @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold px-2.5 py-1 rounded-full;
   }
 
+  .tag-teal {
+    @apply bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold px-2.5 py-1 rounded-full;
+  }
+
+  .tag-amber {
+    @apply bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold px-2.5 py-1 rounded-full;
+  }
+
   .step-indicator {
     @apply w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0;
   }

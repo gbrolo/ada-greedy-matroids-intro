@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import SchedulingSection from './SchedulingSection'
 
 // ─── Reusable reveal component ───────────────────────────────────────────────
 
@@ -807,8 +806,6 @@ export default function Day2Section() {
         </div>
 
       </main>
-
-      <SchedulingSection />
 
       {/* Footer */}
       <footer className="border-t border-slate-800 py-8 text-center text-slate-500 text-sm mt-16">

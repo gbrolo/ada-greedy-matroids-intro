@@ -6,6 +6,7 @@ import MatroidSection from './sections/MatroidSection'
 import GreedySection from './sections/GreedySection'
 import ConsoleSection from './sections/ConsoleSection'
 import Day2Section from './sections/Day2Section'
+import SchedulingSection from './sections/SchedulingSection'
 
 const DAY1_NAV = [
   { id: 'intro', label: 'Intro', icon: '🌱' },
@@ -17,7 +18,7 @@ const DAY1_NAV = [
 ]
 
 export default function App() {
-  const [day, setDay] = useState<1 | 2>(1)
+  const [day, setDay] = useState<1 | 2 | 3>(1)
   const [activeSection, setActiveSection] = useState('intro')
   const [scrolled, setScrolled] = useState(false)
 
@@ -93,6 +94,16 @@ export default function App() {
             >
               Día 2
             </button>
+            <button
+              onClick={() => setDay(3)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                day === 3
+                  ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Calendarización
+            </button>
           </div>
 
           {/* Day 1 section nav (only visible on day 1, md+) */}
@@ -121,12 +132,20 @@ export default function App() {
               <span className="tag-emerald">Subestructura óptima</span>
             </div>
           )}
+          {day === 3 && (
+            <div className="hidden md:flex items-center gap-2">
+              <span className="tag-teal">Calendarización de Tareas</span>
+              <span className="tag-emerald">Matroide · GREEDY</span>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Content */}
       <div className="pt-14">
-        {day === 1 ? (
+        {day === 3 ? (
+          <SchedulingSection />
+        ) : day === 1 ? (
           <>
             {/* Day 1 Hero */}
             <div className="relative overflow-hidden">

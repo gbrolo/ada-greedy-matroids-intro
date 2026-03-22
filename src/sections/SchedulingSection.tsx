@@ -18,41 +18,21 @@ const CLR: Record<number, string> = {
 }
 
 const ORDER = [1, 2, 3, 4, 5, 6, 7]
-
 function T(id: number) { return TASKS[id - 1] }
-
-function countNt(set: number[], t: number) {
-  return set.filter(id => T(id).deadline <= t).length
-}
-
+function countNt(set: number[], t: number) { return set.filter(id => T(id).deadline <= t).length }
 function isIndep(set: number[]): boolean {
   for (let t = 1; t <= 7; t++) if (countNt(set, t) > t) return false
   return true
 }
-
 function ntRow(set: number[]) {
-  return Array.from({ length: 7 }, (_, i) => {
-    const t = i + 1, nt = countNt(set, t)
-    return { t, nt, fails: nt > t }
-  })
+  return Array.from({ length: 7 }, (_, i) => { const t = i + 1, nt = countNt(set, t); return { t, nt, fails: nt > t } })
 }
-
-// Latest-first slot assignment (canonical in-progress display)
 function assignSlots(set: number[]): (number | null)[] {
   const slots: (number | null)[] = Array(7).fill(null)
-  const sorted = [...set].sort((a, b) => {
-    const d = T(b).deadline - T(a).deadline
-    return d !== 0 ? d : b - a
-  })
-  for (const id of sorted) {
-    for (let s = T(id).deadline - 1; s >= 0; s--) {
-      if (slots[s] === null) { slots[s] = id; break }
-    }
-  }
+  const sorted = [...set].sort((a, b) => { const d = T(b).deadline - T(a).deadline; return d !== 0 ? d : b - a })
+  for (const id of sorted) { for (let s = T(id).deadline - 1; s >= 0; s--) { if (slots[s] === null) { slots[s] = id; break } } }
   return slots
 }
-
-// Final canonical slots: early sorted deadline asc/id asc, then late
 function canonicalSlots(early: number[], late: number[]): (number | null)[] {
   const slots: (number | null)[] = Array(7).fill(null)
   const se = [...early].sort((a, b) => T(a).deadline - T(b).deadline || a - b)
@@ -61,7 +41,7 @@ function canonicalSlots(early: number[], late: number[]): (number | null)[] {
   return slots
 }
 
-// ─── Steps ────────────────────────────────────────────────────────────────────
+// ─── Step data ────────────────────────────────────────────────────────────────
 
 interface Step {
   phase: 'init' | 'accept' | 'reject' | 'final'
@@ -74,7 +54,8 @@ interface Step {
   failT?: number
   failNt?: number
   heading: string
-  body: string
+  story: string
+  matroidNote: string
 }
 
 function buildSteps(): Step[] {
@@ -83,10 +64,10 @@ function buildSteps(): Step[] {
 
   steps.push({
     phase: 'init', id: null, A: [], candidate: [],
-    slots: Array(7).fill(null),
-    ntA: ntRow([]), ntC: ntRow([]),
-    heading: 'Inicio: A = ∅',
-    body: 'Ordenamos las 7 tareas de mayor a menor penalización: a₁(70) ≥ a₂(60) ≥ a₃(50) ≥ a₄(40) ≥ a₅(30) ≥ a₆(20) ≥ a₇(10). Greedy irá evaluando cada una e intentará incorporarla al conjunto A de tareas "a tiempo".',
+    slots: Array(7).fill(null), ntA: ntRow([]), ntC: ntRow([]),
+    heading: 'Inicio: A = ∅ — preparando el planificador',
+    story: 'Imagina que eres el planificador de un procesador que ejecuta exactamente una tarea por ciclo de reloj. Tienes 7 tareas pendientes. Cada una tarda 1 ciclo. Si una tarea no termina antes de su fecha límite (deadline), pagas una multa (penalización wᵢ). Tu meta: minimizar la suma de multas.\n\nLa estrategia Greedy es simple y poderosa: evalúa las tareas de mayor a menor penalización. Siempre intenta salvar primero las más costosas. Si una cabe en el calendario sin violar ningún deadline, la incluyes. Si no cabe, la ejecutas al final (y pagas su multa).',
+    matroidNote: 'La familia de conjuntos independientes I = { A ⊆ S : Nₜ(A) ≤ t ∀t } forma una matroide. Esto garantiza matemáticamente que el enfoque greedy encontrará la solución óptima global.',
   })
 
   for (const id of ORDER) {
@@ -99,19 +80,28 @@ function buildSteps(): Step[] {
 
     if (accept) {
       A = candidate
+      const critEntry = ntC.reduce((best, e) => e.nt > 0 && e.nt / e.t > (best.nt / best.t) ? e : best, ntC[0])
       steps.push({
-        phase: 'accept', id, A: [...A], candidate,
-        slots: assignSlots(A), ntA, ntC,
-        heading: `✅ ${task.label} aceptada — penalización ${task.weight}, deadline ${task.deadline}`,
-        body: `A ∪ {${task.label}} es independiente: Nₜ(A ∪ {${task.label}}) ≤ t para todo t. Ningún intervalo de tiempo queda sobrecargado. ${task.label} entra en tₑ (a tiempo).`,
+        phase: 'accept', id, A: [...A], candidate, slots: assignSlots(A), ntA, ntC,
+        heading: `✅ ${task.label} aceptada — penalización ${task.weight}, deadline slot ${task.deadline}`,
+        story: (() => {
+          const range = Array.from({ length: task.deadline }, (_, i) => i + 1).join(', ')
+          const tightStr = `N_${critEntry.t} = ${critEntry.nt}/${critEntry.t}${critEntry.nt === critEntry.t ? ' (al límite)' : ''}`
+          const aLabels = A.map(i => T(i).label).join(', ')
+          return `${task.label} tiene la ${ORDER.indexOf(id) === 0 ? 'penalización más alta' : `penalización ${task.weight}`} y su deadline es el slot ${task.deadline}. Eso significa que puede ejecutarse en cualquiera de los slots: ${range}.\n\n¿Cabe en el calendario actual? Revisamos cada ventana de tiempo: el caso más ajustado es t=${critEntry.t} (${tightStr} slots ocupados de ${critEntry.t} disponibles). Hay espacio suficiente. ✅\n\nA ahora contiene: { ${aLabels} }`
+        })(),
+        matroidNote: `A ∪ {${task.label}} es un conjunto independiente en la matroide: Nₜ ≤ t para todo t. El procesador puede calendarizar todas estas tareas a tiempo.`,
       })
     } else {
       steps.push({
-        phase: 'reject', id, A: [...A], candidate,
-        slots: assignSlots(A), ntA, ntC,
+        phase: 'reject', id, A: [...A], candidate, slots: assignSlots(A), ntA, ntC,
         failT: failEntry?.t, failNt: failEntry?.nt,
-        heading: `❌ ${task.label} rechazada — penalización ${task.weight}, deadline ${task.deadline}`,
-        body: `A ∪ {${task.label}} NO es independiente: N_${failEntry?.t}(A ∪ {${task.label}}) = ${failEntry?.nt} > ${failEntry?.t}. Hay ${failEntry?.nt} tareas con deadline ≤ ${failEntry?.t} pero solo ${failEntry?.t} slots disponibles. ${task.label} queda como tardía (tₗ).`,
+        heading: `❌ ${task.label} rechazada — deadline ${task.deadline}, no hay slot libre`,
+        story: (() => {
+          const existing = A.filter(i => T(i).deadline <= (failEntry?.t ?? 4)).map(i => T(i).label).join(', ')
+          return `${task.label} tiene deadline ${task.deadline}, así que debe ejecutarse en uno de los slots 1 al ${task.deadline}. El problema: ya tenemos ${A.filter(i => T(i).deadline <= (failEntry?.t ?? 4)).length} tarea(s) con deadline ≤ ${failEntry?.t} en el conjunto A (${existing}). Si añadimos ${task.label}, tendríamos ${failEntry?.nt} tareas que deben entrar en los primeros ${failEntry?.t} slots. ¡Pero solo existen ${failEntry?.t} slots!\n\n${failEntry?.nt} tareas > ${failEntry?.t} slots disponibles → el procesador se satura. No hay forma de calendarizar todas a tiempo. ${task.label} pasa a la lista de tareas tardías (tₗ) y pagará su multa de ${task.weight}.`
+        })(),
+        matroidNote: `A ∪ {${task.label}} NO es independiente: N_${failEntry?.t}(A ∪ {${task.label}}) = ${failEntry?.nt} > ${failEntry?.t}. La matroide detecta que la ventana de tiempo [1..${failEntry?.t}] está sobrecargada.`,
       })
     }
   }
@@ -122,8 +112,9 @@ function buildSteps(): Step[] {
     phase: 'final', id: null, A, candidate: A,
     slots: canonicalSlots(A, lateIds),
     ntA: ntRow(A), ntC: ntRow(A),
-    heading: `Calendarización canónica — Penalización total: ${penalty}`,
-    body: `tₑ = {${A.map(id => T(id).label).join(', ')}} → a tiempo (deadline asc)\ntₗ = {${lateIds.map(id => T(id).label).join(', ')}} → tardías, penalizadas\nTotal = ${lateIds.map(id => `${T(id).weight}`).join(' + ')} = ${penalty}`,
+    heading: `Calendarización canónica — Penalización mínima: ${penalty}`,
+    story: `El algoritmo terminó. Las tareas aceptadas forman el conjunto tₑ (a tiempo): { ${A.map(id => T(id).label).join(', ')} }. Se ordenan por deadline ascendente (forma canónica) y se ejecutan en los primeros slots del procesador.\n\nLas tareas tardías tₗ = { ${lateIds.map(id => T(id).label).join(', ')} } se ejecutan al final. Su penalización total es ${lateIds.map(id => `w${id} (${T(id).weight})`).join(' + ')} = ${penalty}.\n\nEsta es la penalización mínima posible: ningún otro orden de ejecución produce un total menor.`,
+    matroidNote: `Como (S, I) es una matroide ponderada, GREEDY(M, w) garantiza que el conjunto A encontrado maximiza la suma de penalizaciones "salvadas" — equivalentemente, minimiza la penalización total incurrida.`,
   })
 
   return steps
@@ -132,7 +123,153 @@ function buildSteps(): Step[] {
 const STEPS = buildSteps()
 const FINAL_LATE = ORDER.filter(id => !STEPS[STEPS.length - 1].A.includes(id))
 
-// ─── ProcessorGrid ────────────────────────────────────────────────────────────
+// ─── Terminology Legend ───────────────────────────────────────────────────────
+
+function TerminologyLegend() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {[
+        {
+          symbol: 'aᵢ', color: '#22d3ee', bg: '#083344',
+          title: 'Nombre de la tarea',
+          body: 'La etiqueta de cada tarea (a₁, a₂, …, a₇). El subíndice i solo indica su número. Podrías llamarlas "Tarea 1", "Tarea 2", etc. — es solo un nombre.',
+          example: 'a₃ = Tarea 3',
+        },
+        {
+          symbol: 'dᵢ', color: '#fbbf24', bg: '#451a03',
+          title: 'Deadline (fecha límite)',
+          body: 'El último slot de tiempo en que la tarea puede ejecutarse sin incurrir en penalización. Si dᵢ = 4, la tarea puede ir en el slot 1, 2, 3 o 4 sin problema.',
+          example: 'd₃ = 4 → slots válidos: 1, 2, 3, 4',
+        },
+        {
+          symbol: 'wᵢ', color: '#f87171', bg: '#450a0a',
+          title: 'Penalización si llega tarde',
+          body: 'La multa que se paga si la tarea no termina antes de su deadline. Queremos minimizar la suma total de estas penalizaciones. Una w alta = tarea importante.',
+          example: 'w₁ = 70 → multa de 70 si a₁ llega tarde',
+        },
+      ].map(item => (
+        <div
+          key={item.symbol}
+          className="rounded-xl border p-4 space-y-3"
+          style={{ borderColor: `${item.color}30`, backgroundColor: `${item.bg}60` }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold font-mono shrink-0 border"
+              style={{ color: item.color, borderColor: `${item.color}40`, backgroundColor: `${item.color}15` }}
+            >
+              {item.symbol}
+            </div>
+            <p className="text-white font-semibold text-sm">{item.title}</p>
+          </div>
+          <p className="text-slate-300 text-xs leading-relaxed">{item.body}</p>
+          <div className="rounded-lg px-3 py-2 text-xs font-mono" style={{ backgroundColor: `${item.color}10`, color: item.color }}>
+            {item.example}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Capacity Bars ────────────────────────────────────────────────────────────
+
+function CapacityBars({ step }: { step: Step }) {
+  const showCandidate = step.phase === 'accept' || step.phase === 'reject'
+  const task = step.id ? T(step.id) : null
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-slate-500 uppercase font-medium tracking-wide">
+          Capacidad por ventana de tiempo
+        </p>
+        {task && (
+          <p className="text-xs text-slate-400">
+            Nₜ = tareas con deadline ≤ t {showCandidate ? `al añadir ${task.label}` : 'en A actual'}
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-7 gap-2">
+        {step.ntA.map((entry, i) => {
+          const t = entry.t
+          const ntBase = entry.nt
+          const ntNew = showCandidate ? step.ntC[i].nt : ntBase
+          const fails = showCandidate ? step.ntC[i].fails : entry.fails
+          const atLimit = ntNew === t && !fails
+
+          const barColor = fails ? '#ef4444' : atLimit ? '#f59e0b' : '#10b981'
+          const baseHeightPct = Math.min(100, (ntBase / t) * 100)
+          const newHeightPct = Math.min(100, (ntNew / t) * 100)
+
+          const isAffected = showCandidate && ntNew !== ntBase
+
+          return (
+            <div key={t} className="flex flex-col items-center gap-1.5">
+              <span className="text-xs text-slate-500 font-mono">t={t}</span>
+
+              {/* Bar */}
+              <div
+                className="relative w-full rounded-lg overflow-hidden border border-slate-700/50"
+                style={{ height: 72, backgroundColor: '#0f172a' }}
+              >
+                {/* Base bar (current A) */}
+                <div
+                  className="absolute bottom-0 w-full transition-all duration-500"
+                  style={{ height: `${baseHeightPct}%`, backgroundColor: '#334155' }}
+                />
+                {/* Candidate delta bar (on top, animated) */}
+                {showCandidate && isAffected && (
+                  <div
+                    className="absolute bottom-0 w-full transition-all duration-700"
+                    style={{ height: `${newHeightPct}%`, backgroundColor: barColor, opacity: 0.85 }}
+                  />
+                )}
+                {/* If not showing candidate, color the base bar */}
+                {!showCandidate && ntBase > 0 && (
+                  <div
+                    className="absolute bottom-0 w-full transition-all duration-500"
+                    style={{ height: `${baseHeightPct}%`, backgroundColor: '#334155' }}
+                  />
+                )}
+                {/* Limit line at 100% */}
+                <div className="absolute top-0 left-0 right-0 h-px bg-slate-600/60" />
+                {/* Overflow overlay */}
+                {fails && (
+                  <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center">
+                    <span className="text-red-400 text-base font-bold">✗</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Fraction */}
+              <div className={`text-xs font-mono font-bold transition-colors ${
+                fails ? 'text-red-400' : atLimit ? 'text-amber-400' : ntNew > 0 ? 'text-emerald-400' : 'text-slate-600'
+              }`}>
+                {ntNew}/{t}
+              </div>
+
+              {/* Status dot */}
+              <div
+                className="w-2 h-2 rounded-full transition-all duration-300"
+                style={{ backgroundColor: ntNew === 0 ? '#334155' : barColor }}
+              />
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/70 inline-block" />Hay espacio (Nₜ {'<'} t)</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/70 inline-block" />Al límite (Nₜ = t)</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/80 inline-block" />Violación (Nₜ {'>'} t) ✗</span>
+      </div>
+    </div>
+  )
+}
+
+// ─── Processor Grid ───────────────────────────────────────────────────────────
 
 function ProcessorGrid({ step }: { step: Step }) {
   const lateInFinal = step.phase === 'final' ? FINAL_LATE : []
@@ -152,146 +289,72 @@ function ProcessorGrid({ step }: { step: Step }) {
 
           return (
             <div key={i} className="flex flex-col items-center gap-1.5">
+              {/* Slot number header */}
               <div
-                className={`w-full rounded-xl border-2 flex items-center justify-center font-bold text-base transition-all duration-500 relative`}
+                className="w-full text-center text-xs font-mono py-0.5 rounded-t-md"
+                style={{ color: task && !isLate ? color! : '#475569', backgroundColor: '#0f172a' }}
+              >
+                t={slotNum}
+              </div>
+
+              {/* Task cell */}
+              <div
+                className="w-full rounded-xl border-2 flex flex-col items-center justify-center relative transition-all duration-500"
                 style={{
                   aspectRatio: '1',
-                  borderColor: task
-                    ? isLate ? '#ef4444' : color!
-                    : '#1e293b',
+                  borderColor: task ? (isLate ? '#ef4444' : color!) : '#1e293b',
                   borderStyle: task ? 'solid' : 'dashed',
-                  backgroundColor: task
-                    ? isLate ? '#ef444415' : `${color}18`
-                    : 'transparent',
+                  backgroundColor: task ? (isLate ? '#ef444415' : `${color}18`) : 'transparent',
                   color: task ? (isLate ? '#fca5a5' : color!) : '#1e3a5f',
-                  boxShadow: isNew
-                    ? `0 0 20px ${color}55, 0 0 8px ${color}30`
-                    : step.phase === 'final' && task && !isLate
-                      ? `0 0 10px ${color}30`
-                      : undefined,
-                  transform: isNew ? 'scale(1.08)' : 'scale(1)',
+                  boxShadow: isNew ? `0 0 22px ${color}60, 0 0 8px ${color}30` : step.phase === 'final' && task && !isLate ? `0 0 10px ${color}25` : undefined,
+                  transform: isNew ? 'scale(1.1)' : 'scale(1)',
                 }}
               >
                 {task ? (
-                  <span>{task.label}</span>
+                  <span className="font-bold text-sm">{task.label}</span>
                 ) : (
-                  <span className="text-slate-800 text-sm select-none">·</span>
+                  <span className="text-slate-800 text-xs select-none">·</span>
+                )}
+                {isNew && (
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-xs font-bold px-1 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: `${color}30`, color: color ?? undefined }}>
+                    nuevo
+                  </span>
                 )}
                 {isLate && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none font-bold">✗</span>
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">✗</span>
                 )}
               </div>
-              <div className="text-center space-y-0.5">
-                <div className="text-xs text-slate-600 font-mono">t={slotNum}</div>
-                {task && (
-                  <div className="text-xs font-medium" style={{ color: isLate ? '#fca5a5' : (color || 'white') }}>
-                    d={task.deadline}
-                  </div>
-                )}
-              </div>
+
+              {/* Deadline badge */}
+              {task && (
+                <div
+                  className="text-xs font-mono font-medium"
+                  style={{ color: isLate ? '#fca5a5' : color! }}
+                >
+                  d={task.deadline}
+                </div>
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* Rejected task overlay */}
+      {/* Rejected task callout */}
       {step.phase === 'reject' && step.id && (
         <div className="mt-4 flex items-center gap-3 bg-red-950/20 border border-red-800/30 rounded-xl px-4 py-3">
           <div
-            className="w-10 h-10 rounded-lg border-2 border-red-500/60 flex items-center justify-center font-bold text-sm flex-shrink-0"
-            style={{ color: CLR[step.id], backgroundColor: `${CLR[step.id]}15` }}
+            className="w-10 h-10 rounded-lg border-2 flex items-center justify-center font-bold text-sm shrink-0"
+            style={{ borderColor: '#7f1d1d', color: CLR[step.id], backgroundColor: `${CLR[step.id]}10` }}
           >
             {T(step.id).label}
           </div>
           <div>
-            <p className="text-red-300 text-xs font-semibold">No hay slot disponible para {T(step.id).label}</p>
-            <p className="text-red-400/70 text-xs">deadline = {T(step.id).deadline}, pero N_{step.failT} = {step.failNt} {'>'} {step.failT} → violación de independencia</p>
+            <p className="text-red-300 text-xs font-semibold">{T(step.id).label} no puede ejecutarse a tiempo</p>
+            <p className="text-red-500/70 text-xs">deadline = {T(step.id).deadline}, pero N_{step.failT} = {step.failNt} {'>'} {step.failT} → {step.failNt} tareas para {step.failT} slots</p>
           </div>
-          <span className="ml-auto text-2xl text-red-500/60">✗</span>
+          <span className="ml-auto text-3xl text-red-700/40 font-black">✗</span>
         </div>
       )}
-    </div>
-  )
-}
-
-// ─── Nt Table ─────────────────────────────────────────────────────────────────
-
-function NtTable({ step }: { step: Step }) {
-  const showCandidate = step.phase === 'accept' || step.phase === 'reject'
-  const task = step.id ? T(step.id) : null
-
-  return (
-    <div>
-      <p className="text-xs text-slate-500 uppercase font-medium tracking-wide mb-2">
-        Criterio de independencia — Nₜ(A) ≤ t para todo t
-      </p>
-      <div className="bg-slate-900/70 border border-slate-700/40 rounded-xl p-4 overflow-x-auto">
-        <table className="w-full text-xs min-w-full">
-          <thead>
-            <tr>
-              <td className="pr-4 py-1.5 text-slate-500 font-medium whitespace-nowrap">t →</td>
-              {step.ntA.map(e => (
-                <td key={e.t} className="text-center px-2 py-1.5 font-mono text-slate-500">{e.t}</td>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="pr-4 py-1.5 text-slate-400 whitespace-nowrap font-medium">Nₜ(A)</td>
-              {step.ntA.map(e => (
-                <td key={e.t} className="text-center px-2 py-1.5 font-mono text-slate-400">{e.nt}</td>
-              ))}
-            </tr>
-
-            {showCandidate && task && (
-              <tr>
-                <td className="pr-4 py-1.5 text-slate-200 whitespace-nowrap font-semibold">
-                  Nₜ(A∪{'{' + task.label + '}'})
-                </td>
-                {step.ntC.map((e, i) => {
-                  const changed = e.nt !== step.ntA[i].nt
-                  return (
-                    <td
-                      key={e.t}
-                      className={`text-center px-2 py-1.5 font-mono font-bold rounded transition-all ${
-                        e.fails
-                          ? 'text-red-300 bg-red-950/60'
-                          : changed
-                            ? 'text-emerald-300'
-                            : 'text-slate-500'
-                      }`}
-                    >
-                      {e.nt}{e.fails ? ' ✗' : ''}
-                    </td>
-                  )
-                })}
-              </tr>
-            )}
-
-            <tr>
-              <td className="pr-4 py-1.5 text-slate-600 whitespace-nowrap">límite t</td>
-              {step.ntA.map(e => (
-                <td key={e.t} className="text-center px-2 py-1.5 font-mono text-slate-700">{e.t}</td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-
-        {step.phase === 'reject' && step.failT != null && (
-          <div className="mt-3 flex items-start gap-2 bg-red-950/30 border border-red-900/40 rounded-lg px-3 py-2">
-            <span className="text-red-400 text-sm mt-0.5">⚠</span>
-            <p className="text-red-300 text-xs leading-relaxed">
-              <strong>N_{step.failT} = {step.failNt} {'>'} {step.failT}</strong> — Solo hay {step.failT} slot{step.failT > 1 ? 's' : ''} para tareas con deadline ≤ {step.failT}, pero hay {step.failNt}. No es posible calendarizarlas todas a tiempo.
-            </p>
-          </div>
-        )}
-        {step.phase === 'accept' && (
-          <div className="mt-3 flex items-center gap-2 bg-emerald-950/30 border border-emerald-900/40 rounded-lg px-3 py-2">
-            <span className="text-emerald-400 text-sm">✓</span>
-            <p className="text-emerald-300 text-xs">Nₜ ≤ t para todo t — conjunto sigue siendo independiente en la matroide</p>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
@@ -301,9 +364,12 @@ function NtTable({ step }: { step: Step }) {
 function TaskQueue({ step, stepIdx }: { step: Step; stepIdx: number }) {
   return (
     <div>
-      <p className="text-xs text-slate-500 uppercase font-medium tracking-wide mb-3">
-        Tareas ordenadas por penalización (mayor → menor)
-      </p>
+      <div className="flex items-center gap-4 mb-3">
+        <p className="text-xs text-slate-500 uppercase font-medium tracking-wide">
+          Cola de tareas (mayor → menor penalización)
+        </p>
+        <p className="text-xs text-slate-600">w = penalización · d = deadline · slots = rango válido</p>
+      </div>
       <div className="flex flex-wrap gap-3">
         {ORDER.map((id, orderIdx) => {
           const task = T(id)
@@ -318,36 +384,32 @@ function TaskQueue({ step, stepIdx }: { step: Step; stepIdx: number }) {
           return (
             <div
               key={id}
-              className="flex flex-col items-center gap-1 transition-all duration-300"
-              style={{
-                opacity: isFuture ? 0.35 : isRejected ? 0.45 : 1,
-                transform: isCurrent ? 'scale(1.12)' : 'scale(1)',
-              }}
+              className="flex flex-col items-center gap-1.5 transition-all duration-300"
+              style={{ opacity: isFuture ? 0.3 : isRejected ? 0.4 : 1, transform: isCurrent ? 'scale(1.15)' : 'scale(1)' }}
             >
               <div
-                className="w-14 h-14 rounded-xl border-2 flex flex-col items-center justify-center relative transition-all duration-300"
+                className="w-16 h-16 rounded-xl border-2 flex flex-col items-center justify-center relative transition-all duration-300"
                 style={{
                   borderColor: isRejected ? '#3f3f46' : isCurrent || isAccepted ? color : '#1e293b',
-                  backgroundColor: isCurrent ? `${color}28` : isAccepted ? `${color}18` : '#0f172a',
+                  backgroundColor: isCurrent ? `${color}28` : isAccepted ? `${color}15` : '#0f172a',
                   color: isRejected ? '#52525b' : isCurrent || isAccepted ? color : '#334155',
-                  boxShadow: isCurrent ? `0 0 18px ${color}50` : undefined,
+                  boxShadow: isCurrent ? `0 0 20px ${color}50` : undefined,
                 }}
               >
-                <span className="font-bold text-base leading-none">{task.label}</span>
-                {isRejected && <span className="text-red-500 text-xs mt-0.5">✗</span>}
-                {isPast && isAccepted && <span className="text-xs mt-0.5" style={{ color }}>✓</span>}
+                <span className="font-bold text-lg leading-none">{task.label}</span>
+                {isRejected && <span className="text-red-600 text-sm leading-none mt-0.5">✗</span>}
+                {isPast && isAccepted && <span className="text-xs leading-none mt-0.5" style={{ color }}>✓</span>}
                 {isCurrent && (
-                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-xs px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap"
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-xs px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap"
                     style={{ backgroundColor: `${color}30`, color }}>
-                    ← eval
+                    ← ahora
                   </span>
                 )}
               </div>
               <div className="text-center space-y-0">
-                <div className="text-xs font-semibold" style={{ color: isRejected ? '#52525b' : color }}>
-                  w={task.weight}
-                </div>
+                <div className="text-xs font-semibold" style={{ color: isRejected ? '#52525b' : color }}>w={task.weight}</div>
                 <div className="text-xs text-slate-600">d={task.deadline}</div>
+                <div className="text-xs text-slate-700">slots 1–{task.deadline}</div>
               </div>
             </div>
           )
@@ -357,149 +419,79 @@ function TaskQueue({ step, stepIdx }: { step: Step; stepIdx: number }) {
   )
 }
 
-// ─── Main Visualizer ──────────────────────────────────────────────────────────
+// ─── Current Task Card ────────────────────────────────────────────────────────
 
-function GreedySchedulingViz() {
-  const [stepIdx, setStepIdx] = useState(0)
-  const step = STEPS[stepIdx]
-
-  const phaseBorder = step.phase === 'accept'
-    ? 'border-emerald-800/50'
-    : step.phase === 'reject'
-      ? 'border-red-800/50'
-      : step.phase === 'final'
-        ? 'border-indigo-700/50'
-        : 'border-slate-700/40'
-
-  const phaseBg = step.phase === 'accept'
-    ? 'bg-emerald-950/20'
-    : step.phase === 'reject'
-      ? 'bg-red-950/20'
-      : step.phase === 'final'
-        ? 'bg-indigo-950/20'
-        : 'bg-slate-900/30'
+function CurrentTaskCard({ step }: { step: Step }) {
+  if (!step.id || step.phase === 'init' || step.phase === 'final') return null
+  const task = T(step.id)
+  const color = CLR[step.id]
+  const slots = Array.from({ length: task.deadline }, (_, i) => i + 1)
+  const isAccept = step.phase === 'accept'
 
   return (
-    <div className="space-y-6">
-      {/* Status banner */}
-      <div className={`rounded-xl border px-5 py-4 transition-all duration-500 ${phaseBorder} ${phaseBg}`}>
-        <div className="flex items-start justify-between gap-4 mb-2">
-          <p className="font-bold text-white text-base leading-snug">{step.heading}</p>
-          <span className="text-xs text-slate-500 shrink-0 mt-1">{stepIdx + 1} / {STEPS.length}</span>
+    <div
+      className="rounded-xl border p-4 space-y-3"
+      style={{
+        borderColor: isAccept ? '#065f4660' : '#450a0a60',
+        backgroundColor: isAccept ? '#064e3b18' : '#450a0a18',
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="w-14 h-14 rounded-xl border-2 flex items-center justify-center font-bold text-xl shrink-0"
+          style={{ borderColor: color, backgroundColor: `${color}20`, color }}
+        >
+          {task.label}
         </div>
-        <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">{step.body}</p>
-        {step.phase !== 'init' && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500">A =</span>
-            <span className="font-mono text-xs text-slate-300">
-              {'{'}
-              {step.A.length > 0
-                ? step.A.map(id => T(id).label).join(', ')
-                : '∅'}
-              {'}'}
+        <div className="flex-1 space-y-1">
+          <p className="text-white font-semibold text-sm">¿Puede entrar {task.label} en el calendario?</p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: `${color}20`, color }}>
+              penalización = {task.weight}
             </span>
-            {step.phase === 'accept' && step.id && (
-              <span
-                className="text-xs px-2 py-0.5 rounded-full font-medium"
-                style={{ backgroundColor: `${CLR[step.id]}20`, color: CLR[step.id] }}
-              >
-                + {T(step.id).label} añadida
-              </span>
-            )}
-            {step.phase === 'reject' && step.id && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-red-950/60 text-red-300">
-                {T(step.id).label} → tₗ
-              </span>
-            )}
+            <span className="px-2 py-0.5 rounded-full bg-amber-950/50 text-amber-300">
+              deadline = slot {task.deadline}
+            </span>
           </div>
-        )}
+        </div>
+        <div
+          className="text-2xl font-black shrink-0"
+          style={{ color: isAccept ? '#34d399' : '#ef4444' }}
+        >
+          {isAccept ? '✅' : '❌'}
+        </div>
       </div>
 
-      {/* Core visualizations */}
-      <TaskQueue step={step} stepIdx={stepIdx} />
-      <ProcessorGrid step={step} />
-      <NtTable step={step} />
+      {/* Valid slot range */}
+      <div>
+        <p className="text-xs text-slate-500 mb-1.5">Slots válidos para {task.label} (cualquiera de estos):</p>
+        <div className="flex gap-1.5 flex-wrap">
+          {slots.map(s => (
+            <div
+              key={s}
+              className="w-8 h-8 rounded-lg border flex items-center justify-center text-xs font-bold"
+              style={{ borderColor: `${color}50`, backgroundColor: `${color}15`, color }}
+            >
+              {s}
+            </div>
+          ))}
+          {task.deadline < 7 && (
+            <div className="flex items-center px-2 text-xs text-slate-600">
+              (slots {task.deadline + 1}–7 no son válidos → pasaría el deadline)
+            </div>
+          )}
+        </div>
+      </div>
 
-      {/* Final result panels */}
-      {step.phase === 'final' && (
-        <div className="grid md:grid-cols-2 gap-3">
-          <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/15 p-4 space-y-2">
-            <p className="text-emerald-300 text-xs font-semibold uppercase tracking-wide">tₑ — Tareas a tiempo</p>
-            <div className="flex flex-wrap gap-1.5">
-              {step.A
-                .slice()
-                .sort((a, b) => T(a).deadline - T(b).deadline || a - b)
-                .map(id => (
-                  <span
-                    key={id}
-                    className="text-xs px-2 py-0.5 rounded-full font-medium"
-                    style={{ backgroundColor: `${CLR[id]}20`, color: CLR[id] }}
-                  >
-                    {T(id).label} (d={T(id).deadline})
-                  </span>
-                ))}
-            </div>
-            <p className="text-emerald-400 text-xs font-medium">Penalización = 0</p>
-          </div>
-          <div className="rounded-xl border border-red-800/40 bg-red-950/15 p-4 space-y-2">
-            <p className="text-red-300 text-xs font-semibold uppercase tracking-wide">tₗ — Tareas tardías (penalizadas)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {FINAL_LATE.map(id => (
-                <span key={id} className="text-xs px-2 py-0.5 rounded-full bg-red-950/60 text-red-300 font-medium">
-                  {T(id).label} (w={T(id).weight})
-                </span>
-              ))}
-            </div>
-            <p className="text-red-400 text-xs font-bold">
-              Penalización = {FINAL_LATE.map(id => T(id).weight).join(' + ')} = {FINAL_LATE.reduce((s, id) => s + T(id).weight, 0)}
-            </p>
-          </div>
+      {/* Check result */}
+      {step.phase === 'reject' && step.failT != null && (
+        <div className="bg-red-950/30 border border-red-900/40 rounded-lg px-3 py-2 text-xs text-red-300">
+          <strong>Razón del rechazo:</strong> Si incluimos {task.label}, N_{step.failT} = {step.failNt} — pero solo hay {step.failT} slots hasta t={step.failT}. No caben {step.failNt} tareas en {step.failT} slots.
         </div>
       )}
-
-      {/* Navigation */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setStepIdx(s => Math.max(0, s - 1))}
-          disabled={stepIdx === 0}
-          className="px-4 py-2 rounded-lg text-sm bg-slate-700/50 border border-slate-600/50 text-slate-300 disabled:opacity-30 hover:bg-slate-600/50 transition-colors"
-        >
-          ← Anterior
-        </button>
-
-        <div className="flex gap-1.5 flex-1 justify-center flex-wrap">
-          {STEPS.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => setStepIdx(i)}
-              title={s.heading}
-              className={`rounded-full transition-all duration-200 ${
-                i === stepIdx
-                  ? 'w-6 h-2 bg-blue-400'
-                  : i < stepIdx
-                    ? s.phase === 'reject'
-                      ? 'w-2 h-2 bg-red-600'
-                      : 'w-2 h-2 bg-emerald-600'
-                    : 'w-2 h-2 bg-slate-700'
-              }`}
-            />
-          ))}
-        </div>
-
-        <button
-          onClick={() => setStepIdx(s => Math.min(STEPS.length - 1, s + 1))}
-          disabled={stepIdx === STEPS.length - 1}
-          className="px-4 py-2 rounded-lg text-sm bg-blue-600/30 border border-blue-500/30 text-blue-300 disabled:opacity-30 hover:bg-blue-600/50 transition-colors"
-        >
-          Siguiente →
-        </button>
-      </div>
-
-      {stepIdx === STEPS.length - 1 && (
-        <div className="text-center">
-          <button onClick={() => setStepIdx(0)} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
-            ↺ Reiniciar demo
-          </button>
+      {step.phase === 'accept' && (
+        <div className="bg-emerald-950/30 border border-emerald-900/40 rounded-lg px-3 py-2 text-xs text-emerald-300">
+          <strong>¿Por qué cabe?</strong> Nₜ(A ∪ {'{'}{task.label}{'}'}) ≤ t para todo t. Ninguna ventana de tiempo queda saturada.
         </div>
       )}
     </div>
@@ -510,7 +502,6 @@ function GreedySchedulingViz() {
 
 function MatroidProofPanel() {
   const [open, setOpen] = useState(false)
-
   return (
     <div className="border border-slate-700/50 rounded-xl overflow-hidden">
       <button
@@ -518,68 +509,41 @@ function MatroidProofPanel() {
         className="w-full flex items-center justify-between px-5 py-4 bg-slate-800/40 hover:bg-slate-700/40 transition-colors text-left"
       >
         <div className="flex items-center gap-3">
-          <span className="text-lg">🔬</span>
+          <span className="text-xl">🔬</span>
           <div>
             <p className="text-white font-semibold text-sm">¿Por qué esta estructura es una matroide?</p>
-            <p className="text-slate-400 text-xs mt-0.5">Verificación de propiedad hereditaria y de intercambio</p>
+            <p className="text-slate-400 text-xs mt-0.5">Prueba de propiedad hereditaria y de intercambio (clic para expandir)</p>
           </div>
         </div>
-        <span className="text-slate-400 text-lg">{open ? '▲' : '▼'}</span>
+        <span className="text-slate-400">{open ? '▲' : '▼'}</span>
       </button>
-
       {open && (
         <div className="px-5 py-5 space-y-5 bg-slate-900/40">
-          {/* Hereditary */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="tag-emerald">Hereditaria</span>
-              <span className="text-white text-sm font-semibold">Si A ∈ I y B ⊆ A, entonces B ∈ I</span>
+              <span className="text-white text-sm font-semibold">Subconjuntos de independientes son independientes</span>
             </div>
             <div className="formula-box text-xs space-y-2">
-              <p className="text-slate-300">Sea A independiente, es decir Nₜ(A) ≤ t para todo t. Sea B ⊆ A.</p>
-              <p className="text-slate-300">Como B ⊆ A, cada tarea contada en B también está en A, así que:</p>
-              <p className="text-blue-300 font-mono">Nₜ(B) ≤ Nₜ(A) ≤ t para todo t</p>
-              <p className="text-emerald-300">→ B también es independiente. ✅</p>
+              <p className="text-slate-300">Sea A independiente (Nₜ(A) ≤ t ∀t) y B ⊆ A. Como B ⊆ A:</p>
+              <p className="text-blue-300 font-mono">Nₜ(B) ≤ Nₜ(A) ≤ t para todo t → B es independiente ✅</p>
             </div>
           </div>
-
-          {/* Exchange */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="tag-purple">Intercambio</span>
-              <span className="text-white text-sm font-semibold">Si |B| {'>'} |A|, existe b ∈ B − A tal que A ∪ {'{'} b {'}'} ∈ I</span>
+              <span className="text-white text-sm font-semibold">Si |B| {'>'} |A|, podemos añadir un elemento de B a A</span>
             </div>
             <div className="formula-box text-xs space-y-2">
-              <p className="text-slate-300">
-                Sean A, B independientes con |B| {'>'} |A|. Como |B| {'>'} |A|, debe existir algún
-                t con Nₜ(B) {'>'} Nₜ(A). Sea k el menor de esos t.
-              </p>
-              <p className="text-slate-300">
-                Tomamos β ∈ B − A con <strong className="text-amber-300">deadline ≥ k + 1</strong> (existe porque el "cuello de botella"
-                está en t = k, pero B tiene elementos en t {'>'} k que A no tiene).
-              </p>
-              <p className="text-slate-300">
-                Para A′ = A ∪ {'{'} β {'}'}: Nⱼ(A′) = Nⱼ(A) ≤ j para j = 0,…,k (no cambia porque β tiene deadline {'>'} k).
-                Para j {'>'} k: como B es independiente, Nⱼ(B) ≤ j, y por construcción Nⱼ(A′) ≤ Nⱼ(B) ≤ j.
-              </p>
-              <p className="text-emerald-300">→ A′ = A ∪ {'{'} β {'}'} es independiente. Propiedad de intercambio verificada. ✅</p>
-            </div>
-            <div className="mt-3 bg-amber-950/20 border border-amber-800/30 rounded-lg px-4 py-3">
-              <p className="text-amber-300 text-xs font-semibold mb-1">¿Por qué exigimos deadline ≥ k + 1?</p>
-              <p className="text-slate-300 text-xs leading-relaxed">
-                Si tomáramos un b con deadline c ≤ k y Nᶜ(A) = c (el límite exacto), añadirlo daría
-                Nᶜ(A′) = c + 1 {'>'} c, violando independencia. Por eso solo podemos usar elementos de B
-                con deadlines posteriores a k.
-              </p>
+              <p className="text-slate-300">Sean A, B independientes con |B| {'>'} |A|. Como |B| {'>'} |A|, existe un t donde Nₜ(B) {'>'} Nₜ(A). Sea k el menor de esos t.</p>
+              <p className="text-slate-300">Tomamos β ∈ B − A con deadline ≥ k + 1. Para A′ = A ∪ {'{'} β {'}'}:</p>
+              <p className="text-blue-300 font-mono">Nⱼ(A′) = Nⱼ(A) ≤ j para j ≤ k (β no suma en esa ventana)</p>
+              <p className="text-blue-300 font-mono">Nⱼ(A′) ≤ Nⱼ(B) ≤ j para j {'>'} k (B es independiente)</p>
+              <p className="text-emerald-300">→ A′ es independiente. Propiedad de intercambio verificada. ✅</p>
             </div>
           </div>
-
-          <div className="bg-indigo-950/30 border border-indigo-800/30 rounded-lg px-4 py-3">
-            <p className="text-indigo-300 text-xs font-semibold mb-1">Conclusión</p>
-            <p className="text-slate-300 text-xs leading-relaxed">
-              M = (S, I) donde I = {'{'} A ⊆ S : Nₜ(A) ≤ t para todo t {'}'} es una matroide. Por tanto,
-              GREEDY(M, w) produce la calendarización de penalización mínima. ✅
-            </p>
+          <div className="bg-teal-950/30 border border-teal-800/30 rounded-lg px-4 py-3 text-xs text-teal-200">
+            Como M = (S, I) es una matroide y estamos maximizando la suma de penalizaciones "salvadas" (función de peso w), GREEDY(M, w) produce siempre el conjunto independiente de peso máximo — es decir, la penalización mínima posible.
           </div>
         </div>
       )}
@@ -587,109 +551,300 @@ function MatroidProofPanel() {
   )
 }
 
-// ─── Section Export ───────────────────────────────────────────────────────────
+// ─── Main Visualizer ──────────────────────────────────────────────────────────
+
+function GreedySchedulingViz() {
+  const [stepIdx, setStepIdx] = useState(0)
+  const [showNtTable, setShowNtTable] = useState(false)
+  const step = STEPS[stepIdx]
+
+  const phaseBorder = step.phase === 'accept' ? 'border-emerald-800/50' : step.phase === 'reject' ? 'border-red-800/50' : step.phase === 'final' ? 'border-teal-700/50' : 'border-slate-700/40'
+  const phaseBg = step.phase === 'accept' ? 'bg-emerald-950/20' : step.phase === 'reject' ? 'bg-red-950/20' : step.phase === 'final' ? 'bg-teal-950/20' : 'bg-slate-900/30'
+
+  return (
+    <div className="space-y-8">
+
+      {/* Main narrative banner */}
+      <div className={`rounded-xl border px-5 py-5 transition-all duration-500 ${phaseBorder} ${phaseBg}`}>
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <p className="font-bold text-white text-base leading-snug">{step.heading}</p>
+          <span className="text-xs text-slate-500 shrink-0 mt-1 font-mono">{stepIdx + 1}/{STEPS.length}</span>
+        </div>
+        <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">{step.story}</p>
+
+        {/* A set chips */}
+        {step.phase !== 'init' && (
+          <div className="mt-4 pt-3 border-t border-slate-700/30 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium">A =</span>
+            {step.A.length === 0
+              ? <span className="text-xs text-slate-500 font-mono">∅</span>
+              : step.A.map(id => (
+                <span key={id} className="text-xs px-2.5 py-1 rounded-full font-semibold"
+                  style={{ backgroundColor: `${CLR[id]}20`, color: CLR[id] }}>
+                  {T(id).label}
+                </span>
+              ))
+            }
+            {step.phase === 'reject' && step.id && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-red-950/60 text-red-400">
+                {T(step.id).label} → tardía (tₗ)
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Matroid connection note */}
+      <div className="flex items-start gap-3 bg-blue-950/20 border border-blue-800/20 rounded-xl px-4 py-3">
+        <span className="text-blue-400 text-lg shrink-0 mt-0.5">⚡</span>
+        <div>
+          <p className="text-blue-300 text-xs font-semibold mb-0.5">Conexión con la matroide</p>
+          <p className="text-blue-200/70 text-xs leading-relaxed">{step.matroidNote}</p>
+        </div>
+      </div>
+
+      {/* Task queue */}
+      <div className="card p-5">
+        <TaskQueue step={step} stepIdx={stepIdx} />
+      </div>
+
+      {/* Current task card (only during evaluation) */}
+      {(step.phase === 'accept' || step.phase === 'reject') && (
+        <CurrentTaskCard step={step} />
+      )}
+
+      {/* Processor grid */}
+      <div className="card p-5">
+        <ProcessorGrid step={step} />
+      </div>
+
+      {/* Capacity bars */}
+      <div className="card p-5">
+        <CapacityBars step={step} />
+      </div>
+
+      {/* Raw Nt table (collapsible) */}
+      <div>
+        <button
+          onClick={() => setShowNtTable(v => !v)}
+          className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1.5"
+        >
+          {showNtTable ? '▲' : '▼'} {showNtTable ? 'Ocultar' : 'Ver'} tabla numérica de Nₜ
+        </button>
+        {showNtTable && (
+          <div className="mt-3 bg-slate-900/70 border border-slate-700/40 rounded-xl p-4 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  <td className="pr-4 py-1.5 text-slate-500 font-medium">t →</td>
+                  {step.ntA.map(e => <td key={e.t} className="text-center px-2 py-1.5 font-mono text-slate-500">{e.t}</td>)}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="pr-4 py-1.5 text-slate-400 font-medium whitespace-nowrap">Nₜ(A)</td>
+                  {step.ntA.map(e => <td key={e.t} className="text-center px-2 py-1.5 font-mono text-slate-400">{e.nt}</td>)}
+                </tr>
+                {(step.phase === 'accept' || step.phase === 'reject') && step.id && (
+                  <tr>
+                    <td className="pr-4 py-1.5 text-slate-200 font-semibold whitespace-nowrap">Nₜ(A∪{'{'}{T(step.id).label}{'}'})</td>
+                    {step.ntC.map(e => (
+                      <td key={e.t} className={`text-center px-2 py-1.5 font-mono font-bold rounded ${e.fails ? 'text-red-300 bg-red-950/50' : step.ntA[e.t - 1].nt !== e.nt ? 'text-emerald-300' : 'text-slate-500'}`}>
+                        {e.nt}{e.fails ? ' ✗' : ''}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+                <tr>
+                  <td className="pr-4 py-1.5 text-slate-600">límite t</td>
+                  {step.ntA.map(e => <td key={e.t} className="text-center px-2 py-1.5 font-mono text-slate-700">{e.t}</td>)}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Final result cards */}
+      {step.phase === 'final' && (
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/15 p-4 space-y-2">
+            <p className="text-emerald-300 text-xs font-semibold uppercase tracking-wide">tₑ — A tiempo (penalización = 0)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {step.A.slice().sort((a, b) => T(a).deadline - T(b).deadline || a - b).map(id => (
+                <span key={id} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ backgroundColor: `${CLR[id]}20`, color: CLR[id] }}>
+                  {T(id).label} (d={T(id).deadline})
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-xl border border-red-800/40 bg-red-950/15 p-4 space-y-2">
+            <p className="text-red-300 text-xs font-semibold uppercase tracking-wide">tₗ — Tardías (penalizadas)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {FINAL_LATE.map(id => (
+                <span key={id} className="text-xs px-2.5 py-1 rounded-full bg-red-950/50 text-red-300 font-medium">
+                  {T(id).label} +{T(id).weight}
+                </span>
+              ))}
+            </div>
+            <p className="text-red-400 text-sm font-bold">
+              Total = {FINAL_LATE.map(id => T(id).weight).join(' + ')} = {FINAL_LATE.reduce((s, id) => s + T(id).weight, 0)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div className="flex items-center gap-3 pt-2 border-t border-slate-800/60">
+        <button
+          onClick={() => setStepIdx(s => Math.max(0, s - 1))}
+          disabled={stepIdx === 0}
+          className="px-5 py-2.5 rounded-xl text-sm bg-slate-700/50 border border-slate-600/50 text-slate-300 disabled:opacity-30 hover:bg-slate-600/50 transition-colors font-medium"
+        >
+          ← Anterior
+        </button>
+        <div className="flex gap-1.5 flex-1 justify-center flex-wrap">
+          {STEPS.map((s, i) => (
+            <button key={i} onClick={() => setStepIdx(i)} title={s.heading}
+              className={`rounded-full transition-all duration-200 ${
+                i === stepIdx ? 'w-7 h-2.5 bg-teal-400' : i < stepIdx
+                  ? s.phase === 'reject' ? 'w-2.5 h-2.5 bg-red-600' : 'w-2.5 h-2.5 bg-emerald-600'
+                  : 'w-2.5 h-2.5 bg-slate-700'
+              }`}
+            />
+          ))}
+        </div>
+        <button
+          onClick={() => setStepIdx(s => Math.min(STEPS.length - 1, s + 1))}
+          disabled={stepIdx === STEPS.length - 1}
+          className="px-5 py-2.5 rounded-xl text-sm bg-teal-600/30 border border-teal-500/30 text-teal-300 disabled:opacity-30 hover:bg-teal-600/50 transition-colors font-medium"
+        >
+          Siguiente →
+        </button>
+      </div>
+      {stepIdx === STEPS.length - 1 && (
+        <div className="text-center">
+          <button onClick={() => setStepIdx(0)} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">↺ Reiniciar demo</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Page Export ──────────────────────────────────────────────────────────────
 
 export default function SchedulingSection() {
   return (
-    <section className="py-16 border-t border-slate-800/60">
-      <div className="section-container space-y-12">
+    <div className="min-h-screen">
 
-        {/* Section header */}
-        <div>
-          <div className="flex items-center gap-3 mb-3">
-            <span className="tag-purple">Último ejemplo</span>
-            <span className="tag-blue">Ejercicio 13</span>
-            <span className="tag-emerald">Matroide</span>
+      {/* Hero */}
+      <div className="relative overflow-hidden pt-8">
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-950/50 via-slate-950 to-cyan-950/30 pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-teal-600/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="section-container relative text-center py-16">
+          <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-4 py-1.5 text-teal-300 text-sm font-medium mb-6">
+            <span>⏱</span>
+            <span>Ejemplo Final · Matroides en acción · CLRS Cap. 16</span>
           </div>
-          <h2 className="section-title">Calendarización de Tareas Unitarias</h2>
-          <p className="section-subtitle">
-            Un procesador ejecuta tareas de duración 1. Cada tarea tiene un deadline y una penalización
-            si se entrega tarde. El objetivo es minimizar la penalización total.
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            Calendarización de{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-cyan-400">
+              Tareas Unitarias
+            </span>
+          </h1>
+          <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+            Un procesador, 7 tareas, deadlines y penalizaciones. ¿Cómo la teoría de matroides nos
+            garantiza la calendarización óptima con un simple algoritmo greedy?
           </p>
         </div>
+      </div>
 
-        {/* Problem setup */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="card p-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-300 font-bold text-sm">S</div>
-              <p className="text-white font-semibold text-sm">Tareas</p>
-            </div>
-            <div className="formula-box text-xs space-y-1.5">
-              <p className="text-blue-300 font-mono">S = {'{'} a₁, …, a₇ {'}'}</p>
-              <p className="text-slate-400">7 tareas unitarias (cada una toma 1 ciclo de reloj)</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="text-xs w-full">
-                <thead>
-                  <tr className="text-slate-500">
-                    <td className="py-1 pr-2">aᵢ</td>
-                    {TASKS.map(t => <td key={t.id} className="py-1 px-2 text-center font-mono" style={{ color: CLR[t.id] }}>{t.label}</td>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="py-1 pr-2 text-slate-400">dᵢ</td>
-                    {TASKS.map(t => <td key={t.id} className="py-1 px-2 text-center text-slate-300">{t.deadline}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="py-1 pr-2 text-slate-400">wᵢ</td>
-                    {TASKS.map(t => <td key={t.id} className="py-1 px-2 text-center text-slate-300">{t.weight}</td>)}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <main className="section-container space-y-14 pt-4">
 
-          <div className="card p-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-300 font-bold text-sm">↓</div>
-              <p className="text-white font-semibold text-sm">Forma Canónica</p>
-            </div>
-            <p className="text-slate-400 text-xs leading-relaxed">
-              Toda calendarización puede transformarse en <strong className="text-white">forma canónica</strong> sin empeorar su penalización:
-            </p>
+        {/* Real-world framing */}
+        <div className="highlight-box" style={{ backgroundColor: '#0c1a2e', borderColor: '#1e3a5f' }}>
+          <div className="flex items-start gap-4">
+            <span className="text-3xl shrink-0">🖥️</span>
             <div className="space-y-2">
-              <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-lg px-3 py-2 text-xs">
-                <p className="text-emerald-300 font-semibold">tₑ — tareas a tiempo</p>
-                <p className="text-slate-400">Ejecutadas antes o en su deadline. Ordenadas por deadline ascendente. Penalización = 0.</p>
-              </div>
-              <div className="bg-red-950/30 border border-red-800/30 rounded-lg px-3 py-2 text-xs">
-                <p className="text-red-300 font-semibold">tₗ — tareas tardías</p>
-                <p className="text-slate-400">Ejecutadas después de su deadline. Incurren penalización wᵢ. Se agregan al final.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="card p-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-300 font-bold text-sm">I</div>
-              <p className="text-white font-semibold text-sm">Conjunto Independiente</p>
-            </div>
-            <p className="text-slate-400 text-xs leading-relaxed">
-              Un conjunto A de tareas es <strong className="text-white">independiente</strong> si puede calendarizarse sin penalización:
-            </p>
-            <div className="formula-box text-xs space-y-2">
-              <p className="text-slate-400">Para todo t = 0, 1, …, n:</p>
-              <p className="text-blue-300 font-mono text-sm">Nₜ(A) ≤ t</p>
-              <p className="text-slate-400">donde Nₜ(A) = |{'{'} a ∈ A : dₐ ≤ t {'}'}|</p>
-              <p className="text-slate-400 pt-1 border-t border-slate-700/40">
-                Intuición: no hay más tareas con deadline ≤ t que slots disponibles hasta t.
+              <h3 className="text-white font-bold text-base">El escenario</h3>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Imagina que administras un servidor que procesa solicitudes. Cada solicitud (tarea) tarda
+                exactamente <strong className="text-white">1 unidad de tiempo</strong>. Cada una tiene una{' '}
+                <strong className="text-amber-300">fecha límite</strong> (después de la cual el cliente se molesta)
+                y una <strong className="text-red-300">multa</strong> si la entregas tarde. Tu servidor solo puede
+                procesar <strong className="text-white">una solicitud por ciclo</strong>.
+              </p>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                La pregunta: <strong className="text-teal-300">¿en qué orden procesas las solicitudes para minimizar las multas totales?</strong>{' '}
+                La respuesta involucra matroides y algoritmos greedy.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Interactive demo */}
+        {/* Terminology */}
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="tag-teal">Notación</span>
+            <h3 className="text-lg font-bold text-white">¿Qué significa cada símbolo?</h3>
+          </div>
+          <TerminologyLegend />
+        </div>
+
+        {/* Problem table */}
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="tag-amber">Datos del problema</span>
+            <h3 className="text-lg font-bold text-white">Las 7 tareas a calendarizar</h3>
+          </div>
+          <div className="card p-5 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-700/50">
+                  <td className="py-2 pr-4 text-slate-500 font-medium">Tarea</td>
+                  {TASKS.map(t => (
+                    <td key={t.id} className="py-2 px-3 text-center font-bold" style={{ color: CLR[t.id] }}>{t.label}</td>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/40">
+                <tr>
+                  <td className="py-2.5 pr-4 text-slate-400 text-xs">
+                    <span className="text-amber-300 font-semibold">dᵢ</span> — deadline
+                  </td>
+                  {TASKS.map(t => (
+                    <td key={t.id} className="py-2.5 px-3 text-center text-slate-200">{t.deadline}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <td className="py-2.5 pr-4 text-slate-400 text-xs">
+                    <span className="text-red-300 font-semibold">wᵢ</span> — penalización
+                  </td>
+                  {TASKS.map(t => (
+                    <td key={t.id} className="py-2.5 px-3 text-center font-semibold" style={{ color: CLR[t.id] }}>{t.weight}</td>
+                  ))}
+                </tr>
+                <tr>
+                  <td className="py-2.5 pr-4 text-slate-400 text-xs">Slots válidos</td>
+                  {TASKS.map(t => (
+                    <td key={t.id} className="py-2.5 px-3 text-center text-slate-500 text-xs">1–{t.deadline}</td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Main interactive demo */}
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <span className="tag-amber">Interactivo</span>
-            <span className="text-slate-400 text-sm">Paso a paso</span>
+            <span className="tag-teal">Interactivo</span>
+            <h3 className="text-xl font-bold text-white">GREEDY(M, w) — paso a paso</h3>
           </div>
-          <h3 className="text-xl font-bold text-white mb-1">GREEDY(M, w) en acción</h3>
           <p className="text-slate-400 text-sm mb-6">
-            Navega cada decisión del algoritmo. Observa cómo se verifican los Nₜ y cómo el procesador
-            va llenándose en forma canónica.
+            Navega cada decisión del algoritmo. En cada paso verás <strong className="text-white">por qué</strong> se
+            acepta o rechaza la tarea, qué pasa con el procesador y cómo el criterio de independencia Nₜ ≤ t
+            detecta si hay espacio en el calendario.
           </p>
           <div className="card p-6">
             <GreedySchedulingViz />
@@ -702,56 +857,55 @@ export default function SchedulingSection() {
           <MatroidProofPanel />
         </div>
 
-        {/* Final answer box */}
-        <div className="bg-indigo-950/20 border border-indigo-800/30 rounded-2xl p-6 space-y-4">
+        {/* Final answer */}
+        <div className="bg-gradient-to-br from-teal-950/30 to-slate-900/50 border border-teal-800/30 rounded-2xl p-6 space-y-5">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🏆</span>
             <div>
-              <p className="text-white font-bold text-base">Respuesta — Ejercicio 13</p>
-              <p className="text-slate-400 text-sm">Calendarización óptima que minimiza penalización</p>
+              <p className="text-white font-bold text-lg">Respuesta óptima — Ejercicio 13</p>
+              <p className="text-slate-400 text-sm">La calendarización que minimiza penalizaciones</p>
             </div>
           </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 gap-5">
             <div className="space-y-3">
-              <p className="text-slate-300 text-sm font-semibold">Orden de ejecución canónico:</p>
-              <div className="flex flex-wrap gap-2 items-center">
+              <p className="text-slate-300 text-sm font-semibold">Orden canónico de ejecución:</p>
+              <div className="flex flex-wrap gap-1.5 items-center">
                 {[2, 4, 1, 3, 7, 5, 6].map((id, i) => {
                   const isLate = [5, 6].includes(id)
                   return (
                     <span key={i} className="flex items-center gap-1">
-                      <span
-                        className="text-sm font-bold px-3 py-1.5 rounded-lg border"
-                        style={{
-                          borderColor: isLate ? '#7f1d1d' : CLR[id],
-                          backgroundColor: isLate ? '#450a0a30' : `${CLR[id]}18`,
-                          color: isLate ? '#fca5a5' : CLR[id],
-                        }}
-                      >
+                      <span className="text-sm font-bold px-3 py-1.5 rounded-lg border transition-colors"
+                        style={{ borderColor: isLate ? '#7f1d1d' : CLR[id], backgroundColor: isLate ? '#450a0a30' : `${CLR[id]}18`, color: isLate ? '#fca5a5' : CLR[id] }}>
                         {T(id).label}
                       </span>
-                      {i < 6 && <span className="text-slate-600">→</span>}
+                      {i < 6 && <span className="text-slate-700 text-xs">→</span>}
                     </span>
                   )
                 })}
               </div>
-              <p className="text-slate-500 text-xs">⟨a₂, a₄, a₁, a₃, a₇, a₅, a₆⟩</p>
+              <p className="text-slate-500 text-xs font-mono">⟨a₂, a₄, a₁, a₃, a₇, a₅, a₆⟩</p>
+              <p className="text-slate-500 text-xs">Los últimos 2 (en rojo) llegan tarde y pagan penalización.</p>
             </div>
-
-            <div className="space-y-2">
-              <p className="text-slate-300 text-sm font-semibold">Desglose de penalización:</p>
-              <div className="formula-box text-xs space-y-1.5">
-                <p className="text-emerald-300">tₑ = {'{'} a₂, a₄, a₁, a₃, a₇ {'}'} → penalización = 0</p>
-                <p className="text-red-300">tₗ = {'{'} a₅, a₆ {'}'} → w₅ + w₆ = 30 + 20 = 50</p>
-                <p className="text-white font-bold text-sm pt-1 border-t border-slate-700/40">
-                  Penalización total mínima = 50
-                </p>
+            <div className="formula-box text-xs space-y-2">
+              <p className="text-slate-400 font-semibold mb-2">Desglose de penalización:</p>
+              <p className="text-emerald-300">tₑ = {'{'} a₂, a₄, a₁, a₃, a₇ {'}'}</p>
+              <p className="text-slate-500 text-xs">→ ejecutadas a tiempo → penalización = 0</p>
+              <p className="text-red-300 mt-2">tₗ = {'{'} a₅, a₆ {'}'}</p>
+              <p className="text-slate-500 text-xs">→ tardías → w₅ + w₆ = 30 + 20</p>
+              <div className="border-t border-slate-700 pt-2 mt-2">
+                <p className="text-white font-bold text-base">Penalización mínima = 50</p>
               </div>
             </div>
           </div>
         </div>
 
-      </div>
-    </section>
+      </main>
+
+      <footer className="border-t border-slate-800 py-8 text-center text-slate-500 text-sm mt-16">
+        <p>Laboratorio Interactivo · Análisis y Diseño de Algoritmos · Universidad del Valle de Guatemala</p>
+        <p className="mt-1 text-xs text-slate-600">Basado en CLRS — Introduction to Algorithms, Cap. 16</p>
+      </footer>
+
+    </div>
   )
 }

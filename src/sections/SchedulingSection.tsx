@@ -172,98 +172,240 @@ function TerminologyLegend() {
   )
 }
 
-// ─── Capacity Bars ────────────────────────────────────────────────────────────
+// ─── Greedy Code Panel ────────────────────────────────────────────────────────
 
-function CapacityBars({ step }: { step: Step }) {
-  const showCandidate = step.phase === 'accept' || step.phase === 'reject'
-  const task = step.id ? T(step.id) : null
+function GreedyCodePanel({ step }: { step: Step }) {
+  const isEval = step.phase === 'accept' || step.phase === 'reject'
+  const taskLabel = step.id ? T(step.id).label : 'x'
+
+  const lines = [
+    {
+      n: 1, code: 'A = ∅',
+      note: 'Comenzamos sin ninguna tarea calendarizada',
+      active: step.phase === 'init',
+    },
+    {
+      n: 2, code: 'ordenar S por penalización (↓)',
+      note: `Orden: ${ORDER.map(id => `${T(id).label}(${T(id).weight})`).join(' ≥ ')}`,
+      active: step.phase === 'init',
+    },
+    {
+      n: 3, code: `para cada x ∈ S: (evaluando ${isEval ? taskLabel : '…'})`,
+      note: 'Iterar en orden de mayor a menor penalización',
+      active: isEval,
+    },
+    {
+      n: 4, code: `    si A ∪ {${isEval ? taskLabel : 'x'}} ∈ M.I  ← ¿es independiente?`,
+      note: 'Verificar: ¿Nₜ(A ∪ {x}) ≤ t para todo t?',
+      active: isEval,
+      highlight: true,
+    },
+    {
+      n: 5, code: `        A = A ∪ {${isEval ? taskLabel : 'x'}}  ${step.phase === 'accept' ? '← ¡SÍ! se añade' : step.phase === 'reject' ? '← NO se ejecuta' : ''}`,
+      note: step.phase === 'accept' ? `${taskLabel} entra en el conjunto` : step.phase === 'reject' ? `${taskLabel} omitida — irá al final (tardía)` : 'Añadir x solo si pasa la verificación',
+      active: step.phase === 'accept',
+      skipped: step.phase === 'reject',
+    },
+    {
+      n: 6, code: 'retornar A',
+      note: 'El conjunto A es la calendarización óptima de tareas a tiempo',
+      active: step.phase === 'final',
+    },
+  ]
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-slate-500 uppercase font-medium tracking-wide">
-          Capacidad por ventana de tiempo
-        </p>
-        {task && (
-          <p className="text-xs text-slate-400">
-            Nₜ = tareas con deadline ≤ t {showCandidate ? `al añadir ${task.label}` : 'en A actual'}
-          </p>
-        )}
+    <div className="bg-slate-900/80 border border-slate-700/50 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-700/40 bg-slate-800/40">
+        <span className="text-xs text-slate-400 font-mono font-semibold">GREEDY(M, w)</span>
+        <span className="text-xs text-slate-600">— pseudocódigo (línea activa resaltada)</span>
+      </div>
+      <div className="p-3 space-y-0.5 font-mono text-xs">
+        {lines.map(line => (
+          <div
+            key={line.n}
+            className={`flex items-start gap-3 px-2 py-1.5 rounded-lg transition-all duration-300 ${
+              line.active && line.highlight
+                ? 'bg-amber-500/15 border border-amber-500/30'
+                : line.active
+                  ? 'bg-teal-500/10 border border-teal-500/20'
+                  : line.skipped
+                    ? 'opacity-30'
+                    : 'opacity-50'
+            }`}
+          >
+            <span className="text-slate-600 shrink-0 w-4 text-right">{line.n}</span>
+            <div className="flex-1 min-w-0">
+              <span className={`${
+                line.active && line.highlight ? 'text-amber-300' : line.active ? 'text-teal-200' : 'text-slate-500'
+              }`}>
+                {line.code}
+              </span>
+              {(line.active || line.skipped) && (
+                <p className={`text-xs mt-0.5 ${
+                  line.active && line.highlight ? 'text-amber-400/80' : line.skipped ? 'text-red-400/70' : 'text-slate-400'
+                }`}>
+                  {'// '}{line.note}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Window Analysis (replaces Capacity Bars) ─────────────────────────────────
+
+function WindowAnalysis({ step }: { step: Step }) {
+  const showCandidate = step.phase === 'accept' || step.phase === 'reject'
+  const task = step.id ? T(step.id) : null
+  const changedTs = showCandidate
+    ? step.ntA.map((e, i) => step.ntC[i].nt !== e.nt ? e.t : null).filter(Boolean) as number[]
+    : []
+
+  return (
+    <div className="space-y-4">
+      {/* What is Nₜ — always shown */}
+      <div className="bg-slate-900/60 border border-slate-700/40 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-300 font-bold text-sm shrink-0">N</div>
+          <div className="space-y-1.5">
+            <p className="text-white text-sm font-semibold">¿Qué es Nₜ(A)?</p>
+            <p className="text-slate-300 text-xs leading-relaxed">
+              <strong className="text-teal-300">Nₜ(A)</strong> = cantidad de tareas en A que tienen deadline ≤ t.
+              Dicho de otro modo: cuántas tareas de A <strong className="text-white">deben ejecutarse dentro de los primeros t ciclos</strong>.
+            </p>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              La regla de independencia exige <span className="text-emerald-300 font-mono font-semibold">Nₜ(A) ≤ t</span> para todo t.
+              ¿Por qué? Porque hay exactamente t slots disponibles en los ciclos 1..t. Si más tareas necesitan esos slots de los que existen → imposible calendarizarlas todas a tiempo.
+            </p>
+            {showCandidate && task && changedTs.length > 0 && (
+              <p className="text-amber-300 text-xs">
+                Añadir {task.label} (deadline={task.deadline}) aumenta N_{changedTs.join(', N_')} en +1.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
-        {step.ntA.map((entry, i) => {
-          const t = entry.t
-          const ntBase = entry.nt
-          const ntNew = showCandidate ? step.ntC[i].nt : ntBase
-          const fails = showCandidate ? step.ntC[i].fails : entry.fails
-          const atLimit = ntNew === t && !fails
+      {/* Window cards */}
+      <div>
+        <p className="text-xs text-slate-500 uppercase font-medium tracking-wide mb-3">
+          Revisión por ventana de tiempo — ¿Nₜ ≤ t en cada ventana?
+        </p>
+        <div className="grid grid-cols-7 gap-2">
+          {step.ntA.map((entry, i) => {
+            const t = entry.t
+            const ntBase = entry.nt
+            const ntNew = showCandidate ? step.ntC[i].nt : ntBase
+            const fails = showCandidate ? step.ntC[i].fails : false
+            const atLimit = ntNew === t && !fails
+            const isAffected = showCandidate && ntNew !== ntBase
+            const isCritical = fails && t === step.failT
 
-          const barColor = fails ? '#ef4444' : atLimit ? '#f59e0b' : '#10b981'
-          const baseHeightPct = Math.min(100, (ntBase / t) * 100)
-          const newHeightPct = Math.min(100, (ntNew / t) * 100)
+            const borderCol = isCritical ? '#ef4444' : fails ? '#7f1d1d' : atLimit ? '#d97706' : isAffected ? '#0d9488' : '#1e293b'
+            const bgCol = isCritical ? '#450a0a40' : fails ? '#450a0a20' : atLimit ? '#45200a20' : isAffected ? '#0d948820' : 'transparent'
+            const barFill = fails ? '#ef4444cc' : atLimit ? '#f59e0bcc' : ntNew > 0 ? '#10b981cc' : '#1e293b'
+            const textCol = fails ? '#fca5a5' : atLimit ? '#fcd34d' : ntNew > 0 ? '#6ee7b7' : '#334155'
 
-          const isAffected = showCandidate && ntNew !== ntBase
-
-          return (
-            <div key={t} className="flex flex-col items-center gap-1.5">
-              <span className="text-xs text-slate-500 font-mono">t={t}</span>
-
-              {/* Bar */}
+            return (
               <div
-                className="relative w-full rounded-lg overflow-hidden border border-slate-700/50"
-                style={{ height: 72, backgroundColor: '#0f172a' }}
+                key={t}
+                className="rounded-xl border flex flex-col items-center gap-1.5 p-2 transition-all duration-300"
+                style={{ borderColor: borderCol, backgroundColor: bgCol }}
               >
-                {/* Base bar (current A) */}
+                {/* Window label */}
+                <p className="text-xs font-mono text-slate-400">t={t}</p>
+
+                {/* Bar */}
                 <div
-                  className="absolute bottom-0 w-full transition-all duration-500"
-                  style={{ height: `${baseHeightPct}%`, backgroundColor: '#334155' }}
-                />
-                {/* Candidate delta bar (on top, animated) */}
-                {showCandidate && isAffected && (
-                  <div
-                    className="absolute bottom-0 w-full transition-all duration-700"
-                    style={{ height: `${newHeightPct}%`, backgroundColor: barColor, opacity: 0.85 }}
-                  />
-                )}
-                {/* If not showing candidate, color the base bar */}
-                {!showCandidate && ntBase > 0 && (
+                  className="w-full rounded overflow-hidden relative"
+                  style={{ height: 56, backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
+                >
+                  {/* Base bar */}
                   <div
                     className="absolute bottom-0 w-full transition-all duration-500"
-                    style={{ height: `${baseHeightPct}%`, backgroundColor: '#334155' }}
+                    style={{ height: `${Math.min(100, (ntBase / t) * 100)}%`, backgroundColor: '#334155' }}
                   />
-                )}
-                {/* Limit line at 100% */}
-                <div className="absolute top-0 left-0 right-0 h-px bg-slate-600/60" />
-                {/* Overflow overlay */}
-                {fails && (
-                  <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center">
-                    <span className="text-red-400 text-base font-bold">✗</span>
-                  </div>
-                )}
-              </div>
+                  {/* Candidate bar */}
+                  {isAffected && (
+                    <div
+                      className="absolute bottom-0 w-full transition-all duration-700"
+                      style={{ height: `${Math.min(110, (ntNew / t) * 100)}%`, backgroundColor: barFill }}
+                    />
+                  )}
+                  {/* Limit line */}
+                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-slate-600/80" style={{ top: 'calc(100% - 0px)' }} />
+                  {/* Overflow flash */}
+                  {fails && <div className="absolute inset-0 bg-red-600/20" />}
+                </div>
 
-              {/* Fraction */}
-              <div className={`text-xs font-mono font-bold transition-colors ${
-                fails ? 'text-red-400' : atLimit ? 'text-amber-400' : ntNew > 0 ? 'text-emerald-400' : 'text-slate-600'
-              }`}>
-                {ntNew}/{t}
-              </div>
+                {/* Fraction */}
+                <p className="text-xs font-mono font-bold" style={{ color: textCol }}>
+                  {ntNew}<span className="text-slate-600">/{t}</span>
+                </p>
 
-              {/* Status dot */}
-              <div
-                className="w-2 h-2 rounded-full transition-all duration-300"
-                style={{ backgroundColor: ntNew === 0 ? '#334155' : barColor }}
-              />
-            </div>
-          )
-        })}
+                {/* Status label */}
+                <p className="text-xs font-semibold text-center leading-none" style={{ color: textCol }}>
+                  {fails ? '✗ lleno' : atLimit ? '⚠ límite' : ntNew > 0 ? '✓ ok' : '—'}
+                </p>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/70 inline-block" />Hay espacio (Nₜ {'<'} t)</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/70 inline-block" />Al límite (Nₜ = t)</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/80 inline-block" />Violación (Nₜ {'>'} t) ✗</span>
+      {/* Explanation of what just happened */}
+      {showCandidate && task && (
+        <div className={`rounded-xl border px-4 py-3 text-xs leading-relaxed space-y-2 ${
+          step.phase === 'reject'
+            ? 'bg-red-950/20 border-red-800/40'
+            : 'bg-emerald-950/20 border-emerald-800/40'
+        }`}>
+          {step.phase === 'reject' && step.failT != null ? (
+            <>
+              <p className="text-red-300 font-semibold">
+                ✗ Ventana crítica t={step.failT} — ciclos 1 hasta {step.failT}
+              </p>
+              <p className="text-slate-300">
+                En los ciclos 1 al {step.failT} hay exactamente <strong className="text-white">{step.failT} slots disponibles</strong>.
+                El conjunto A ya tiene <strong className="text-white">{step.ntA[step.failT - 1].nt} tarea(s)</strong> que deben ejecutarse en esa ventana.
+                Añadir {task.label} (deadline={task.deadline} ≤ {step.failT}) llevaría el total a <strong className="text-red-300">{step.failNt}</strong>.
+              </p>
+              <p className="text-red-400 font-mono">
+                N_{step.failT}(A ∪ {'{' + task.label + '}'}) = {step.failNt} {'>'} {step.failT} → violación → {task.label} rechazada
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-emerald-300 font-semibold">
+                ✓ Ninguna ventana se satura al añadir {task.label}
+              </p>
+              {changedTs.length > 0 ? (
+                <p className="text-slate-300">
+                  Añadir {task.label} (deadline={task.deadline}) afecta las ventanas{' '}
+                  {changedTs.map(t => `t=${t} (N_${t}: ${step.ntA[t-1].nt} → ${step.ntC[t-1].nt}/${t})`).join(', ')}.
+                  Todas siguen dentro del límite.
+                </p>
+              ) : (
+                <p className="text-slate-300">
+                  {task.label} tiene deadline={task.deadline} pero no aumenta ninguna ventana ya ocupada.
+                </p>
+              )}
+              <p className="text-emerald-400 font-mono">
+                Nₜ(A ∪ {'{' + task.label + '}'}) ≤ t para todo t → {task.label} aceptada
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#10b981cc' }} />Nₜ {'<'} t (hay espacio)</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#f59e0bcc' }} />Nₜ = t (al límite)</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#ef4444cc' }} />Nₜ {'>'} t — VIOLACIÓN ✗</span>
       </div>
     </div>
   )
@@ -564,6 +706,9 @@ function GreedySchedulingViz() {
   return (
     <div className="space-y-8">
 
+      {/* Greedy pseudocode — always visible, shows current line */}
+      <GreedyCodePanel step={step} />
+
       {/* Main narrative banner */}
       <div className={`rounded-xl border px-5 py-5 transition-all duration-500 ${phaseBorder} ${phaseBg}`}>
         <div className="flex items-start justify-between gap-4 mb-3">
@@ -618,9 +763,9 @@ function GreedySchedulingViz() {
         <ProcessorGrid step={step} />
       </div>
 
-      {/* Capacity bars */}
+      {/* Window analysis — replaces capacity bars */}
       <div className="card p-5">
-        <CapacityBars step={step} />
+        <WindowAnalysis step={step} />
       </div>
 
       {/* Raw Nt table (collapsible) */}

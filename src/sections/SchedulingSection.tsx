@@ -172,6 +172,120 @@ function TerminologyLegend() {
   )
 }
 
+// ─── Independence Explainer ───────────────────────────────────────────────────
+
+function IndependenceExplainer() {
+  const indepIds = [1, 2, 4]
+  const notIndepIds = [1, 2, 3, 4, 5]
+
+  function ntCheck(ids: number[], maxT: number) {
+    return Array.from({ length: maxT }, (_, i) => {
+      const t = i + 1
+      const nt = ids.filter(id => T(id).deadline <= t).length
+      return { t, nt, fails: nt > t }
+    })
+  }
+
+  const indepNt = ntCheck(indepIds, 4)
+  const notIndepNt = ntCheck(notIndepIds, 4)
+
+  function NtChecks({ nt }: { nt: { t: number; nt: number; fails: boolean }[] }) {
+    return (
+      <div className="space-y-1">
+        {nt.map(e => (
+          <div key={e.t} className={`flex items-center gap-3 text-xs font-mono px-2 py-1 rounded ${
+            e.fails ? 'bg-red-950/40 text-red-300' : e.nt === e.t ? 'bg-amber-950/20 text-amber-300' : e.nt > 0 ? 'text-emerald-400' : 'text-slate-600'
+          }`}>
+            <span className="text-slate-500 w-10 shrink-0">t = {e.t}:</span>
+            <span>N_{e.t}(A) = {e.nt}</span>
+            <span className="text-slate-500">{e.fails ? '>' : '≤'}</span>
+            <span>{e.t}</span>
+            <span className="ml-auto shrink-0">{e.fails ? '✗ violación' : e.nt === e.t ? '⚠ límite' : '✓ ok'}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Main definition */}
+      <div className="bg-slate-900/60 border border-teal-700/40 rounded-xl p-5">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-300 font-black text-lg shrink-0">I</div>
+          <div className="space-y-2">
+            <p className="text-white font-bold">Un conjunto A es <span className="text-teal-300">independiente</span> si puedes calendarizar TODAS sus tareas a tiempo</p>
+            <p className="text-slate-300 text-sm leading-relaxed">
+              "Calendarizable a tiempo" significa que existe una asignación de cada tarea a un slot de tiempo antes de su deadline, sin que dos tareas compartan slot. Para verificar esto de forma eficiente sin probar todas las asignaciones posibles, usamos el criterio:
+            </p>
+            <div className="rounded-lg bg-teal-950/40 border border-teal-800/30 px-4 py-3">
+              <p className="font-mono text-sm">
+                <span className="text-teal-300">A ∈ I</span>
+                <span className="text-slate-400"> ⟺ </span>
+                <span className="text-white">Nₜ(A) ≤ t</span>
+                <span className="text-slate-400"> para todo t = 1, 2, …, n</span>
+              </p>
+              <p className="text-slate-400 text-xs mt-1.5">donde Nₜ(A) = cantidad de tareas en A con deadline ≤ t</p>
+            </div>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              La lógica es directa: en los primeros t ciclos del procesador hay exactamente t slots disponibles. Si Nₜ(A) {'>'} t, significa que más de t tareas necesitan ejecutarse en esa ventana — imposible con un solo procesador. El criterio detecta este conflicto en O(n).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Two examples side by side */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="rounded-xl border border-emerald-800/50 bg-emerald-950/15 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">✅</span>
+            <p className="text-emerald-300 font-bold text-sm">Conjunto independiente</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-slate-500 mr-1">A =</span>
+            {indepIds.map(id => (
+              <span key={id} className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: `${CLR[id]}20`, color: CLR[id] }}>
+                {T(id).label} (d={T(id).deadline})
+              </span>
+            ))}
+          </div>
+          <NtChecks nt={indepNt} />
+          <p className="text-emerald-300 text-xs leading-relaxed">
+            Todos los Nₜ ≤ t → {'{'}a₁, a₂, a₄{'}'} se pueden calendarizar a tiempo. Se pueden asignar, por ejemplo, a₂ al slot 1, a₄ al slot 2, a₁ al slot 3. ✓
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-red-800/50 bg-red-950/15 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">❌</span>
+            <p className="text-red-300 font-bold text-sm">NO independiente</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-slate-500 mr-1">A =</span>
+            {notIndepIds.map(id => (
+              <span key={id} className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: `${CLR[id]}20`, color: CLR[id] }}>
+                {T(id).label} (d={T(id).deadline})
+              </span>
+            ))}
+          </div>
+          <NtChecks nt={notIndepNt} />
+          <p className="text-red-300 text-xs leading-relaxed">
+            N₄(A) = 5 {'>'} 4 → las 5 tareas tienen deadline ≤ 4, pero solo hay 4 slots en los ciclos 1–4. No es posible ejecutarlas todas a tiempo. ✗
+          </p>
+        </div>
+      </div>
+
+      {/* Connection to greedy */}
+      <div className="bg-blue-950/20 border border-blue-800/20 rounded-xl px-4 py-3 flex items-start gap-3">
+        <span className="text-blue-400 text-lg shrink-0">💡</span>
+        <p className="text-blue-200/80 text-xs leading-relaxed">
+          <strong className="text-blue-300">Conexión con el algoritmo:</strong> En cada paso del greedy, la pregunta "¿A ∪ {'{'}{'{'}x{'}'} ∈ I?" es exactamente "¿puedo añadir esta tarea sin que ninguna ventana de tiempo se sature?". La familia I = {'{'} A ⊆ S : Nₜ(A) ≤ t para todo t {'}'} define todos los conjuntos de tareas calendarizables, y el greedy navega dentro de esta familia buscando el de mayor peso total.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ─── Greedy Code Panel ────────────────────────────────────────────────────────
 
 function GreedyCodePanel({ step }: { step: Step }) {
@@ -643,52 +757,143 @@ function CurrentTaskCard({ step }: { step: Step }) {
 // ─── Matroid Proof Panel ──────────────────────────────────────────────────────
 
 function MatroidProofPanel() {
-  const [open, setOpen] = useState(false)
+  const [openHer, setOpenHer] = useState(false)
+  const [openExch, setOpenExch] = useState(false)
+
   return (
-    <div className="border border-slate-700/50 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-slate-800/40 hover:bg-slate-700/40 transition-colors text-left"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-xl">🔬</span>
-          <div>
-            <p className="text-white font-semibold text-sm">¿Por qué esta estructura es una matroide?</p>
-            <p className="text-slate-400 text-xs mt-0.5">Prueba de propiedad hereditaria y de intercambio (clic para expandir)</p>
+    <div className="space-y-4">
+
+      {/* What is a matroid — always visible */}
+      <div className="bg-slate-900/60 border border-purple-800/30 rounded-xl p-5">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 font-black text-lg shrink-0">M</div>
+          <div className="space-y-2">
+            <p className="text-white font-bold">¿Por qué GREEDY garantiza el óptimo? — Porque (S, I) es una <span className="text-purple-300">matroide</span></p>
+            <p className="text-slate-300 text-sm leading-relaxed">
+              Una <strong className="text-purple-300">matroide</strong> es una estructura (S, I) con propiedades especiales. La propiedad central es extraordinaria: <strong className="text-white">para cualquier matroide, el algoritmo greedy SIEMPRE encuentra el conjunto independiente de peso máximo</strong> (Teorema 16.4, CLRS). No hace falta probar todas las combinaciones posibles.
+            </p>
+            <p className="text-slate-400 text-sm">
+              Para que (S, I) sea una matroide necesita cumplir 3 propiedades. Las dos no triviales se demuestran abajo:
+            </p>
           </div>
         </div>
-        <span className="text-slate-400">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="px-5 py-5 space-y-5 bg-slate-900/40">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="tag-emerald">Hereditaria</span>
-              <span className="text-white text-sm font-semibold">Subconjuntos de independientes son independientes</span>
-            </div>
-            <div className="formula-box text-xs space-y-2">
-              <p className="text-slate-300">Sea A independiente (Nₜ(A) ≤ t ∀t) y B ⊆ A. Como B ⊆ A:</p>
-              <p className="text-blue-300 font-mono">Nₜ(B) ≤ Nₜ(A) ≤ t para todo t → B es independiente ✅</p>
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="tag-purple">Intercambio</span>
-              <span className="text-white text-sm font-semibold">Si |B| {'>'} |A|, podemos añadir un elemento de B a A</span>
-            </div>
-            <div className="formula-box text-xs space-y-2">
-              <p className="text-slate-300">Sean A, B independientes con |B| {'>'} |A|. Como |B| {'>'} |A|, existe un t donde Nₜ(B) {'>'} Nₜ(A). Sea k el menor de esos t.</p>
-              <p className="text-slate-300">Tomamos β ∈ B − A con deadline ≥ k + 1. Para A′ = A ∪ {'{'} β {'}'}:</p>
-              <p className="text-blue-300 font-mono">Nⱼ(A′) = Nⱼ(A) ≤ j para j ≤ k (β no suma en esa ventana)</p>
-              <p className="text-blue-300 font-mono">Nⱼ(A′) ≤ Nⱼ(B) ≤ j para j {'>'} k (B es independiente)</p>
-              <p className="text-emerald-300">→ A′ es independiente. Propiedad de intercambio verificada. ✅</p>
-            </div>
-          </div>
-          <div className="bg-teal-950/30 border border-teal-800/30 rounded-lg px-4 py-3 text-xs text-teal-200">
-            Como M = (S, I) es una matroide y estamos maximizando la suma de penalizaciones "salvadas" (función de peso w), GREEDY(M, w) produce siempre el conjunto independiente de peso máximo — es decir, la penalización mínima posible.
-          </div>
+      </div>
+
+      {/* Property 1: trivial */}
+      <div className="rounded-xl border border-slate-700/40 bg-slate-900/30 px-4 py-3 flex items-center gap-3">
+        <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+        <div className="flex-1">
+          <p className="text-white text-sm font-semibold">∅ ∈ I — el conjunto vacío es independiente</p>
+          <p className="text-slate-400 text-xs mt-0.5">Sin tareas no hay deadlines que violar. Nₜ(∅) = 0 ≤ t para todo t.</p>
         </div>
-      )}
+        <span className="tag-emerald shrink-0">Trivial ✓</span>
+      </div>
+
+      {/* Property 2: hereditaria */}
+      <div className="rounded-xl border border-slate-700/40 overflow-hidden">
+        <button
+          onClick={() => setOpenHer(o => !o)}
+          className="w-full flex items-start gap-3 px-4 py-4 bg-slate-800/40 hover:bg-slate-700/40 transition-colors text-left"
+        >
+          <span className="w-6 h-6 rounded-full bg-blue-700/50 text-blue-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</span>
+          <div className="flex-1">
+            <p className="text-white font-semibold text-sm">Propiedad hereditaria — "Menos tareas nunca rompe el calendario"</p>
+            <p className="text-slate-400 text-xs mt-0.5">
+              Si un conjunto de tareas cabe a tiempo, cualquier subconjunto también cabe — quitar tareas nunca causa conflictos nuevos
+            </p>
+          </div>
+          <span className="text-slate-400 shrink-0 mt-0.5">{openHer ? '▲' : '▼'}</span>
+        </button>
+        {openHer && (
+          <div className="px-5 py-4 bg-slate-900/40 space-y-4 border-t border-slate-700/30">
+            <div className="space-y-1.5">
+              <p className="text-slate-200 text-sm font-semibold">Intuición:</p>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Si {'{'}{'}'}a₁, a₂, a₃, a₄, a₇{'}'} se calendariza a tiempo, y quitamos a₄, ¿puede el resto seguir calendarizándose? Sí — quitamos una tarea y liberamos un slot. Nunca puede causar un conflicto nuevo. Ninguna ventana de tiempo puede <em>saturarse más</em> con menos tareas.
+              </p>
+            </div>
+            <div className="bg-slate-800/40 rounded-lg p-3 space-y-2">
+              <p className="text-xs text-slate-400 font-medium">Ejemplo con nuestras tareas:</p>
+              <div className="space-y-1 font-mono text-xs">
+                <p className="text-emerald-300">A = {'{'} a₁(d=4), a₂(d=2), a₃(d=4), a₄(d=3) {'}'} — N₄ = 4 ≤ 4 ✓</p>
+                <p className="text-blue-300">B = {'{'} a₁(d=4), a₂(d=2), a₃(d=4) {'}'} ⊆ A — N₄ = 3 ≤ 4 ✓</p>
+                <p className="text-slate-500 text-xs">Al quitar a₄, N₃ baja de 2 a 1. N₄ baja de 4 a 3. Nunca aumenta.</p>
+              </div>
+            </div>
+            <div className="formula-box text-xs space-y-2">
+              <p className="text-slate-400 font-semibold">Demostración formal:</p>
+              <p className="text-slate-300">Sea A ∈ I (Nₜ(A) ≤ t ∀t) y sea B ⊆ A. Como B ⊆ A, toda tarea de B también está en A, por lo que Nₜ(B) ≤ Nₜ(A). Entonces:</p>
+              <p className="text-blue-300 font-mono">Nₜ(B) ≤ Nₜ(A) ≤ t para todo t → B ∈ I ✅</p>
+            </div>
+            <div className="bg-blue-950/20 border border-blue-800/20 rounded-lg px-3 py-2 text-xs text-blue-200/80 leading-relaxed">
+              <strong className="text-blue-300">¿Por qué importa para el greedy?</strong> Garantiza que el algoritmo nunca necesita "deshacer" decisiones pasadas. Si añadir una tarea fue válido, el conjunto previo (sin ella) también era válido. El historial del greedy es siempre consistente.
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Property 3: intercambio */}
+      <div className="rounded-xl border border-slate-700/40 overflow-hidden">
+        <button
+          onClick={() => setOpenExch(o => !o)}
+          className="w-full flex items-start gap-3 px-4 py-4 bg-slate-800/40 hover:bg-slate-700/40 transition-colors text-left"
+        >
+          <span className="w-6 h-6 rounded-full bg-purple-700/50 text-purple-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</span>
+          <div className="flex-1">
+            <p className="text-white font-semibold text-sm">Propiedad de intercambio — "Siempre puedes crecer hacia la solución óptima"</p>
+            <p className="text-slate-400 text-xs mt-0.5">
+              Si B es un conjunto válido más grande que A, siempre existe al menos una tarea de B que se puede añadir a A sin romper nada
+            </p>
+          </div>
+          <span className="text-slate-400 shrink-0 mt-0.5">{openExch ? '▲' : '▼'}</span>
+        </button>
+        {openExch && (
+          <div className="px-5 py-4 bg-slate-900/40 space-y-4 border-t border-slate-700/30">
+            <div className="space-y-1.5">
+              <p className="text-slate-200 text-sm font-semibold">Intuición:</p>
+              <p className="text-slate-300 text-sm leading-relaxed">
+                Supón que el greedy construyó el conjunto A y la solución óptima real es B (con más tareas). Esta propiedad garantiza que siempre existe alguna tarea de B que se puede añadir a A manteniendo el conjunto independiente. Dicho de otro modo: el greedy <em>nunca se queda atascado</em> sin poder crecer si todavía hay espacio.
+              </p>
+            </div>
+            <div className="bg-slate-800/40 rounded-lg p-3 space-y-2">
+              <p className="text-xs text-slate-400 font-medium">Ejemplo con nuestras tareas:</p>
+              <div className="space-y-1 font-mono text-xs">
+                <p className="text-blue-300">A = {'{'} a₁(d=4), a₂(d=2) {'}'} — 2 tareas, independiente ✓</p>
+                <p className="text-emerald-300">B = {'{'} a₁(d=4), a₂(d=2), a₃(d=4), a₄(d=3) {'}'} — 4 tareas, independiente ✓</p>
+                <p className="text-slate-400 mt-1">|B| {'>'} |A| → debe existir una tarea de B − A = {'{'} a₃, a₄ {'}'} que podamos añadir a A:</p>
+                <p className="text-teal-300">A ∪ {'{'} a₃ {'}'} = {'{'} a₁, a₂, a₃ {'}'} — N₄ = 3 ≤ 4 ✓ — sigue siendo independiente ✅</p>
+              </div>
+            </div>
+            <div className="formula-box text-xs space-y-2">
+              <p className="text-slate-400 font-semibold">Demostración formal (sketch):</p>
+              <p className="text-slate-300">Sean A, B ∈ I con |B| {'>'} |A|. Como |B| {'>'} |A|, existe algún t donde Nₜ(B) {'>'} Nₜ(A). Sea k el menor de esos t. Tomamos β ∈ B − A con deadline {'>'} k. Para A′ = A ∪ {'{'} β {'}'}:</p>
+              <p className="text-blue-300 font-mono">Nⱼ(A′) = Nⱼ(A) ≤ j  para j ≤ k  (β tiene deadline {'>'} k, no cuenta aquí)</p>
+              <p className="text-blue-300 font-mono">Nⱼ(A′) ≤ Nⱼ(B) ≤ j  para j {'>'} k  (B ∈ I, así que Nⱼ(B) ≤ j)</p>
+              <p className="text-emerald-300">→ A′ ∈ I. Propiedad de intercambio verificada. ✅</p>
+            </div>
+            <div className="bg-purple-950/20 border border-purple-800/20 rounded-lg px-3 py-2 text-xs text-purple-200/80 leading-relaxed">
+              <strong className="text-purple-300">¿Por qué implica que el greedy es óptimo?</strong> Por contradicción: si el greedy eligió un A subóptimo, la solución óptima B tendría mayor peso total con |B| = |A| (ambos son bases de la matroide). Pero la propiedad de intercambio garantiza que podríamos intercambiar elementos entre A y B para mejorar A — contradicción con que A fue construido greedy (siempre eligiendo el mayor peso disponible).
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Final synthesis */}
+      <div className="bg-gradient-to-r from-teal-950/40 to-purple-950/30 border border-teal-700/30 rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🎯</span>
+          <p className="text-white font-bold text-sm">Conclusión: (S, I) es matroide → GREEDY(M, w) es óptimo</p>
+        </div>
+        <p className="text-slate-300 text-sm leading-relaxed">
+          (S, I) cumple las 3 propiedades → es una matroide. La función de peso es wᵢ (penalización de cada tarea). El <strong className="text-white">Teorema 16.4 de CLRS</strong> garantiza que GREEDY(M, w) devuelve el conjunto independiente de peso máximo — es decir, el conjunto que maximiza las penalizaciones rescatadas, minimizando así la penalización total pagada.
+        </p>
+        <div className="formula-box text-xs space-y-1.5">
+          <p className="text-slate-400">Para cualquier calendarización alternativa A′ ∈ I:</p>
+          <p className="text-teal-300 font-mono">Σ wᵢ (i ∈ A_greedy)  ≥  Σ wᵢ (i ∈ A′)</p>
+          <p className="text-slate-500 mt-1">→ penalización(greedy) ≤ penalización(cualquier otra solución)</p>
+          <p className="text-slate-500">→ con nuestros datos: 50 es la penalización mínima posible. No existe orden de ejecución con penalización {'<'} 50.</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -980,6 +1185,15 @@ export default function SchedulingSection() {
           </div>
         </div>
 
+        {/* Independence concept */}
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="tag-emerald">Concepto clave</span>
+            <h3 className="text-lg font-bold text-white">¿Qué significa que un conjunto sea "independiente"?</h3>
+          </div>
+          <IndependenceExplainer />
+        </div>
+
         {/* Main interactive demo */}
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -998,7 +1212,13 @@ export default function SchedulingSection() {
 
         {/* Matroid proof */}
         <div>
-          <h3 className="text-lg font-bold text-white mb-3">Fundamento matemático</h3>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="tag-purple">Fundamento matemático</span>
+            <h3 className="text-lg font-bold text-white">¿Por qué (S, I) es una matroide?</h3>
+          </div>
+          <p className="text-slate-400 text-sm mb-5">
+            Para que el greedy sea óptimo necesitamos probar que (S, I) satisface las propiedades de matroide. Cada propiedad tiene una interpretación intuitiva en términos de calendarización.
+          </p>
           <MatroidProofPanel />
         </div>
 
